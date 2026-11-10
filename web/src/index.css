@@ -1,1 +1,47 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* The one accent colour (indigo). Use accent-* everywhere instead of a named palette. */
+  --color-accent-50: oklch(96.2% 0.018 272.314);
+  --color-accent-100: oklch(93% 0.034 272.788);
+  --color-accent-200: oklch(87% 0.065 274.039);
+  --color-accent-300: oklch(78.5% 0.115 274.713);
+  --color-accent-500: oklch(58.5% 0.233 277.117);
+  --color-accent-600: oklch(51.1% 0.262 276.966);
+  --color-accent-700: oklch(45.7% 0.24 277.023);
+}
+
+@layer base {
+  html {
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    background: var(--color-accent-100);
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer components {
+  .field {
+    @apply block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-xs transition placeholder:text-zinc-400 focus:border-accent-500 focus:ring-3 focus:ring-accent-100 focus:outline-none disabled:bg-zinc-50 disabled:text-zinc-500;
+  }
+  .field-invalid {
+    @apply border-rose-300 focus:border-rose-500 focus:ring-rose-100;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium text-zinc-600;
+  }
+  .card {
+    @apply rounded-2xl border border-zinc-200/80 bg-white shadow-xs;
+  }
+}

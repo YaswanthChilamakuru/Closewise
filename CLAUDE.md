@@ -14,6 +14,32 @@ NO AI: no OpenAI/Anthropic/LLM SDKs, keys or calls, ever. Do not add any.
 - Web auth: email+password (bcrypt), JWT in httpOnly cookie
 - MCP auth: per-user secret token in the URL path: POST /mcp/:token
 
+## Commands (run from the repo root)
+- `npm install`: install all workspaces (runs `prisma generate`)
+- `npm run dev`: server (tsx watch, :3000) + web (Vite, :5173, proxies /api /mcp /p /health)
+- `npm run build`: web (tsc + vite build → web/dist), then server (prisma generate + tsc → server/dist)
+- `npm start`: production: `prisma migrate deploy`, then `node server/dist/index.js` (serves web/dist)
+- `npm run serve -w server`: production server without running migrations
+- `npm run db:migrate -- --name <change>`: create + apply a migration in dev (commit the folder)
+- `npm run db:deploy`: apply pending migrations (what `npm start` runs)
+- `npm run db:seed`: demo user demo@closewise.app / Demo@1234 + sample proposals; prints the MCP URL
+- `npm run db:studio -w server`: Prisma Studio
+- Typecheck only: `npx tsc -p server/tsconfig.json --noEmit` and `cd web && npx tsc --noEmit`
+- Env vars live in the repo-root `.env`: DATABASE_URL (Neon direct), JWT_SECRET, APP_URL. See DEPLOY.md.
+
+Gotchas:
+- Windows: stop `npm run dev` before `npm install` / `prisma generate` (the engine DLL is locked → EPERM),
+  or install with `--ignore-scripts`.
+- `prisma migrate` fails with P1001 on networks with broken IPv6 while the app works (Node falls back
+  to IPv4). Fix in DEPLOY.md → Troubleshooting.
+- `tsx watch` may not pick up newly added files; restart `npm run dev` after adding server modules.
+
+## Routes
+- `/api/*` JSON API for the web app (cookie auth): auth, proposals CRUD/autosave/publish, stats, MCP token
+- `/mcp/:token` MCP endpoint · `/health` liveness (no DB)
+- `/p/:slug` public client page (server-rendered, no login): view tracking, accept/decline; drafts 404
+- everything else: React SPA (login, dashboard, `/proposals/:id` editor, `/connect`)
+
 ## Data model
 User(id, email, passwordHash, name, mcpToken unique)
 Proposal(id, userId, slug unique, title, clientName, clientEmail, currency, validUntil,

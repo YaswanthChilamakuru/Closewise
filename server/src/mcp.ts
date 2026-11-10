@@ -14,7 +14,8 @@ import {
   publicUrl,
   summarize,
   toMinor,
-  asSections,
+  publishProblems,
+  LOCKED_STATUSES as LOCKED,
 } from "./proposals";
 
 // ---------------------------------------------------------------------------
@@ -104,7 +105,6 @@ async function findOwned(user: User, id: string) {
 const notFound = (id: string) =>
   fail(`No proposal with id "${id}" was found in this account. Call list_proposals to see the available proposal ids.`);
 
-const LOCKED = new Set(["ACCEPTED", "DECLINED"]);
 
 // ---------------------------------------------------------------------------
 // MCP server (one per request: stateless)
@@ -350,9 +350,7 @@ Requirements: at least one section and at least one non-optional line item. Call
           summarize(existing, { headline: `"${existing.title}" is already published (${existing.status}). Share this link with the client: ${publicUrl(existing)}` })
         );
 
-      const problems: string[] = [];
-      if (!asSections(existing.sections).length) problems.push("it has no sections");
-      if (!existing.lineItems.some((li) => !li.optional)) problems.push("it has no required (non-optional) line items");
+      const problems = publishProblems(existing);
       if (problems.length)
         return fail(`Cannot publish "${existing.title}": ${problems.join(" and ")}. Fix it with update_proposal, then publish again.`);
 

@@ -78,6 +78,22 @@ export function asSections(json: unknown): Section[] {
     .map((s) => ({ heading: String(s.heading ?? ""), body: String(s.body ?? "") }));
 }
 
+/** Proposals in these statuses are final and cannot be edited or republished. */
+export const LOCKED_STATUSES = new Set<Proposal["status"]>(["ACCEPTED", "DECLINED"]);
+
+/** Reasons a proposal is not ready to publish (empty array = ready). Shared by MCP and the web API. */
+export function publishProblems(p: Pick<Proposal, "sections" | "title" | "clientName"> & { lineItems: LineItem[] }): string[] {
+  const problems: string[] = [];
+  const sections = asSections(p.sections);
+  if (!p.title.trim()) problems.push("it has no title");
+  if (!p.clientName.trim()) problems.push("it has no client name");
+  if (!sections.length) problems.push("it has no sections");
+  if (sections.some((s) => !s.heading.trim())) problems.push("a section has no heading");
+  if (!p.lineItems.some((li) => !li.optional)) problems.push("it has no required (non-optional) line items");
+  if (p.lineItems.some((li) => !li.name.trim())) problems.push("a line item has no name");
+  return problems;
+}
+
 const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 const STATUS_HINT: Record<Proposal["status"], string> = {

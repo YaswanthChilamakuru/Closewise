@@ -5,6 +5,8 @@ services:
     name: closewise
     runtime: node
     plan: free
+    # Same region as the Neon database (ap-southeast-1) to keep DB round-trips short.
+    region: singapore
     buildCommand: npm install && npm run build
     # Root `npm start` runs `prisma migrate deploy` and then starts Express.
     startCommand: npm start

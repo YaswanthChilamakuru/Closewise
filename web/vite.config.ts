@@ -12,6 +12,8 @@ export default defineConfig({
       "/api": backend,
       "/mcp": backend,
       "/health": backend,
+      // Public client pages; a regex so "/proposals/..." (SPA route) isn't proxied.
+      "^/p/": backend,
     },
   },
 });

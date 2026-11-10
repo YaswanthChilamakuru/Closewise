@@ -5,6 +5,8 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import { prisma } from "./db";
 import { mcpRouter } from "./mcp";
+import { apiRouter } from "./api";
+import { publicRouter } from "./publicPage";
 
 const app = express();
 // Render (and most PaaS) terminate TLS at one proxy hop: trust it so req.ip / req.secure are correct.
@@ -20,15 +22,9 @@ app.get("/health", (_req, res) => {
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
-const api = express.Router();
-api.get("/ping", (_req, res) => {
-  res.json({ ok: true });
-});
-api.use((_req, res) => {
-  res.status(404).json({ error: "Not found" });
-});
-app.use("/api", api);
+app.use("/api", apiRouter);
 app.use("/mcp", mcpRouter);
+app.use("/p", publicRouter);
 
 // Serve the built React app (web/dist) with SPA fallback for client-side routes.
 // Resolves to <repo>/web/dist from both src/ (tsx) and dist/ (compiled).
@@ -55,6 +51,18 @@ if (fs.existsSync(indexHtml)) {
 
 app.use((_req, res) => {
   res.status(404).type("text").send("Not found");
+});
+
+// Last-resort error handler (Express 5 forwards rejected async handlers here).
+app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status = (err as { status?: number })?.status;
+  if (status && status >= 400 && status < 500) {
+    // e.g. malformed JSON body
+    return res.status(status).json({ error: "Bad request" });
+  }
+  console.error(`Unhandled error on ${req.method} ${req.path}:`, err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: "Something went wrong. Please try again." });
 });
 
 // Render sets PORT; bind all interfaces so the platform router can reach us.

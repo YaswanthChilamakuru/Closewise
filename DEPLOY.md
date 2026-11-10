@@ -22,6 +22,9 @@ The database is **Neon Postgres** (external). Render's free disk is wiped on eve
 - The repo pushed to GitHub or GitLab.
 - A Neon project. Copy the **direct** connection string (host *without* `-pooler`), with `?sslmode=require`.
   `prisma migrate deploy` needs a direct connection: Neon's pooler (PgBouncer) breaks migrations.
+- `render.yaml` pins the service to `region: singapore` to match a Neon project in `ap-southeast-1`.
+  If your Neon project is in another region, change it to the closest Render region (`oregon`, `ohio`,
+  `virginia`, `frankfurt`, `singapore`). Region can't be changed after the service is created.
 
 ## 2. Create the service from the Blueprint
 
