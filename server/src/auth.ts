@@ -101,6 +101,15 @@ authRouter.post("/login", async (req, res) => {
   res.json({ user: publicUser(user) });
 });
 
+/** Session probe for app start-up: always 200 ({ user: null } when signed out), so no console 401 noise. */
+authRouter.get("/session", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const id = sessionUserId(req);
+  const user = id ? await prisma.user.findUnique({ where: { id } }) : null;
+  if (!user && req.cookies?.[COOKIE]) res.clearCookie(COOKIE, { path: "/" });
+  res.json({ user: user ? publicUser(user) : null });
+});
+
 authRouter.post("/logout", (_req, res) => {
   res.clearCookie(COOKIE, { path: "/" });
   res.json({ ok: true });

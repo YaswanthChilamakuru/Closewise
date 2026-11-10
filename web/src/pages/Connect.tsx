@@ -6,11 +6,11 @@ import { Button, CopyButton, Modal, copyText, useToast } from "../components/ui"
 import { IconAlert, IconCopy, IconEye, IconEyeOff, IconRefresh, IconSparkle } from "../components/icons";
 
 const EXAMPLE_PROMPTS = [
-  "Use Closewise to draft a proposal for a 5-page website redesign for Sharma Interiors, ₹1,20,000, valid for 14 days. Add an optional SEO setup add-on.",
-  "Create a Closewise proposal for Acme Corp: logo design for ₹25,000, with brand guidelines (₹8,000) as an optional extra.",
+  "Use Closewise to draft a proposal for a 5-page website redesign for my client, ₹1,20,000, valid for 14 days. Add an optional SEO setup add-on.",
+  "Create a Closewise proposal for my client: logo design for ₹25,000, with brand guidelines (₹8,000) as an optional extra.",
   "List my Closewise proposals and tell me which ones the client has viewed but not accepted yet.",
-  "Open my Northwind Studio proposal in Closewise and make the scope section more persuasive. Keep the prices as they are.",
-  "Publish the Acme Corp proposal and give me the link to send.",
+  "Open my latest draft in Closewise and make the scope section more persuasive. Keep the prices as they are.",
+  "Publish my brand identity proposal in Closewise and give me the link to send.",
 ];
 
 export default function Connect() {

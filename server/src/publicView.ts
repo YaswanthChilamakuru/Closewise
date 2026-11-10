@@ -1,7 +1,7 @@
 import MarkdownIt from "markdown-it";
 import type { LineItem, Proposal, User } from "@prisma/client";
 import { env } from "./env";
-import { asSections, computeTotals, currencyDigits, formatMoney, lineTotal } from "./proposals";
+import { asSections, computeTotals, currencyDigits, formatMoney, isProposalExpired, lineTotal } from "./proposals";
 
 // Presentation for the client-facing proposal page (/p/:slug). Routes + logic live in publicPage.ts.
 
@@ -22,8 +22,8 @@ const esc = (s: string) =>
 export const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const fmtQty = (q: number) => (Number.isInteger(q) ? String(q) : q.toLocaleString("en-US", { maximumFractionDigits: 2 }));
 
-/** validUntil is stored as a UTC date (midnight); the quote is valid through that whole day. */
-export const isExpired = (p: Proposal) => !!p.validUntil && p.validUntil.getTime() + 86_400_000 <= Date.now();
+/** Same rule everywhere (dashboard, editor, MCP): valid through the whole validUntil day, then expired. */
+export const isExpired = (p: Proposal) => isProposalExpired(p);
 
 const initial = (name: string) => (name.trim().match(/[A-Za-z0-9]/)?.[0] ?? "?").toUpperCase();
 
@@ -446,7 +446,7 @@ ${
     <p>“${esc(p.title)}” from ${esc(from)}</p>
     <div class="sum"><div class="r"><span>Add-ons</span><b class="money" id="acc-addons"></b></div><div class="r grand"><span>Total</span><b class="money" id="acc-total"></b></div></div>
     <label class="f" for="acc-name">Type your full name to sign</label>
-    <input type="text" id="acc-name" autocomplete="name" maxlength="120" required placeholder="e.g. Priya Sharma">
+    <input type="text" id="acc-name" autocomplete="name" maxlength="120" required placeholder="Your full name">
     <div class="typed" id="acc-typed" aria-hidden="true"></div>
     <label class="agree"><input type="checkbox" id="acc-agree"> <span>I agree to the scope, terms and total in this proposal.</span></label>
     <div class="err" id="acc-err" role="alert"></div>

@@ -15,7 +15,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setUnauthorizedHandler(() => setUser(null));
-    api<{ user: User }>("/me")
+    // /auth/session answers 200 with { user: null } when signed out (no console 401).
+    api<{ user: User | null }>("/auth/session")
       .then((d) => setUser(d.user))
       .catch(() => setUser(null));
     return () => setUnauthorizedHandler(null);

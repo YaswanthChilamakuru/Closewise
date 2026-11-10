@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { api, ApiError, type Activity, type Proposal } from "../lib/api";
-import { formatDate, formatDateTime, formatMoney, lineTotalMinor, relativeTime, todayYmd } from "../lib/format";
-import { Link } from "../lib/router";
+import { addDaysYmd, formatDate, formatDateTime, formatMoney, isExpiredYmd, lineTotalMinor, relativeTime, todayUtcYmd } from "../lib/format";
+import { Link, navigate } from "../lib/router";
 import { usePolling } from "../lib/usePolling";
 import { AppShell } from "../components/AppShell";
 import { Markdown } from "../components/Markdown";
-import { Button, ClaudeBadge, CopyButton, IconButton, Modal, Skeleton, Spinner, StatusBadge, cx, useToast } from "../components/ui";
+import { DeleteProposalDialog } from "../components/DeleteProposalDialog";
+import { Button, ClaudeBadge, CopyButton, ExpiredBadge, IconButton, Modal, Skeleton, Spinner, StatusBadge, cx, useToast } from "../components/ui";
 import {
   IconAlert,
   IconArrowLeft,
   IconCheck,
   IconCircleCheck,
+  IconClock,
   IconDown,
+  IconDuplicate,
   IconExternal,
   IconEye,
   IconFilePlus,
@@ -123,6 +126,7 @@ export default function Editor({ id }: { id: string }) {
   const timer = useRef<number | undefined>(undefined);
   const syncedAt = useRef("");
   const lastStatus = useRef<string | null>(null);
+  const deleted = useRef(false);
 
   const isDirty = () => version.current !== savedVersion.current;
 
@@ -263,7 +267,7 @@ export default function Editor({ id }: { id: string }) {
       window.removeEventListener("keydown", onKey);
       window.clearTimeout(timer.current);
       const d = draftRef.current;
-      if (d && isDirty() && !Object.keys(validate(d)).length)
+      if (d && !deleted.current && isDirty() && !Object.keys(validate(d)).length)
         void api(`/proposals/${id}`, { method: "PATCH", body: toPayload(d), keepalive: true }).catch(() => {});
     };
   }, [id, flush]);
@@ -287,6 +291,31 @@ export default function Editor({ id }: { id: string }) {
     } finally {
       setPublishing(false);
     }
+  }
+
+  // ---------------------------------------------------------------- duplicate
+  const [duplicating, setDuplicating] = useState(false);
+  async function duplicate() {
+    setDuplicating(true);
+    try {
+      await flush(); // copy the latest saved content (invalid unsaved edits are skipped)
+      const { proposal } = await api<{ proposal: Proposal }>(`/proposals/${id}/duplicate`, { method: "POST" });
+      toast(`Duplicated as “${proposal.title}”`);
+      navigate(`/proposals/${proposal.id}`);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Couldn't duplicate this proposal", "error");
+      setDuplicating(false);
+    }
+  }
+
+  // ---------------------------------------------------------------- delete
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  function onDeleted() {
+    // Stop autosave from touching a proposal that no longer exists, then leave.
+    deleted.current = true;
+    window.clearTimeout(timer.current);
+    savedVersion.current = version.current;
+    navigate("/", { replace: true });
   }
 
   // ---------------------------------------------------------------- render
@@ -324,6 +353,7 @@ export default function Editor({ id }: { id: string }) {
 
   const locked = meta.locked;
   const published = meta.status !== "DRAFT";
+  const expired = isExpiredYmd(draft.validUntil, meta.status);
   const openPublish = () => {
     setPublishError(null);
     setPublishOpen(true);
@@ -348,6 +378,7 @@ export default function Editor({ id }: { id: string }) {
           <div>
             <div className="mb-3 flex flex-wrap items-center gap-1.5">
               <StatusBadge status={meta.status} />
+              {expired && <ExpiredBadge />}
               {meta.source === "CLAUDE" && <ClaudeBadge />}
               <span className="ml-1 text-[13px] text-zinc-500">Created {formatDate(meta.createdAt)}</span>
             </div>
@@ -379,6 +410,31 @@ export default function Editor({ id }: { id: string }) {
                   : "Declined by the client."}{" "}
                 This proposal is final and can no longer be edited.
               </span>
+              <Button size="sm" onClick={duplicate} loading={duplicating} className="ml-auto shrink-0">
+                {!duplicating && <IconDuplicate className="size-3.5" />}
+                Duplicate
+              </Button>
+            </div>
+          )}
+
+          {expired && !locked && (
+            <div className="flex animate-pop-in flex-col gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800 sm:flex-row sm:items-center">
+              <span className="flex items-start gap-2.5">
+                <IconClock className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  <span className="font-medium">Expired on {formatDate(draft.validUntil)}.</span>{" "}
+                  {published ? "The client can still view it but can't accept" : "Once published, the client won't be able to accept"} until
+                  you extend the valid-until date.
+                </span>
+              </span>
+              <div className="flex shrink-0 gap-2 sm:ml-auto">
+                <Button size="sm" variant="dark" onClick={() => update((d) => ({ ...d, validUntil: addDaysYmd(todayUtcYmd(), 14) }))}>
+                  Extend 14 days
+                </Button>
+                <Button size="sm" onClick={duplicate} loading={duplicating}>
+                  Duplicate
+                </Button>
+              </div>
             </div>
           )}
 
@@ -390,6 +446,16 @@ export default function Editor({ id }: { id: string }) {
               label="Copy link"
               toast={published ? "Public link copied" : "Link copied. It goes live once you publish."}
             />
+            <Button variant="ghost" onClick={duplicate} loading={duplicating}>
+              {!duplicating && <IconDuplicate className="size-4" />}
+              Duplicate
+            </Button>
+            {meta.source === "MANUAL" && (
+              <Button variant="ghost" onClick={() => setDeleteOpen(true)} className="text-rose-600 hover:bg-rose-50 hover:text-rose-700">
+                <IconTrash className="size-4" />
+                Delete
+              </Button>
+            )}
           </div>
 
           <Panel title="Client & validity">
@@ -414,8 +480,8 @@ export default function Editor({ id }: { id: string }) {
               </Field>
               <Field
                 label="Valid until"
-                hint={draft.validUntil && draft.validUntil < todayYmd() ? "In the past" : undefined}
-                hintTone={draft.validUntil && draft.validUntil < todayYmd() ? "warn" : undefined}
+                hint={expired ? "Expired" : draft.validUntil ? undefined : "No expiry"}
+                hintTone={expired ? "warn" : undefined}
               >
                 <input
                   type="date"
@@ -433,10 +499,26 @@ export default function Editor({ id }: { id: string }) {
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-20">
-          <SummaryCard draft={draft} meta={meta} published={published} locked={locked} onPublish={openPublish} />
+          <SummaryCard
+            draft={draft}
+            meta={meta}
+            published={published}
+            locked={locked}
+            expired={expired}
+            onPublish={openPublish}
+            onDuplicate={duplicate}
+            duplicating={duplicating}
+            onDelete={meta.source === "MANUAL" ? () => setDeleteOpen(true) : undefined}
+          />
           <ActivityTimeline activities={meta.activities} acceptedBy={meta.acceptedBy} />
         </aside>
       </div>
+
+      <DeleteProposalDialog
+        target={deleteOpen ? { id: meta.id, title: draft.title || meta.title, status: meta.status } : null}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={onDeleted}
+      />
 
       <Modal
         open={publishOpen}
@@ -462,6 +544,14 @@ export default function Editor({ id }: { id: string }) {
           The public link starts working right away, and you'll see here when the client opens or accepts it. You can keep
           editing afterwards: changes go live immediately.
         </p>
+        {expired && (
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2.5 text-orange-800">
+            <IconClock className="mt-0.5 size-4 shrink-0" />
+            <span>
+              The valid-until date ({formatDate(draft.validUntil)}) has passed, so the client won't be able to accept. Use “Extend 14 days” first.
+            </span>
+          </div>
+        )}
         {publishError && (
           <div className="mt-4 flex animate-pop-in items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-rose-700" role="alert">
             <IconAlert className="mt-0.5 size-4 shrink-0" />
@@ -897,7 +987,15 @@ function LineItemsEditor({
       </div>
 
       <div className="divide-y divide-zinc-100">
-        {draft.lineItems.length === 0 && <p className="px-6 py-10 text-center text-sm text-zinc-500">No line items yet.</p>}
+        {draft.lineItems.length === 0 && (
+          <div className="flex flex-col items-center px-6 py-10 text-center">
+            <span className="grid size-10 place-items-center rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-400">
+              <IconPlus className="size-4" />
+            </span>
+            <p className="mt-3 text-sm font-medium text-ink">No line items yet</p>
+            <p className="mt-1 text-xs text-zinc-500">Add at least one priced item. Clients can't accept a proposal without one.</p>
+          </div>
+        )}
         {draft.lineItems.map((li, i) => {
           const qErr = errors[`qty:${li.id}`];
           const pErr = errors[`price:${li.id}`];
@@ -993,6 +1091,15 @@ function LineItemsEditor({
                   </IconButton>
                 </div>
               )}
+              {(qErr || pErr || !li.name.trim()) && !locked && (
+                <p className="col-span-2 -mt-1 px-2.5 text-xs md:col-span-6">
+                  {qErr || pErr ? (
+                    <span className="text-rose-600">{qErr || pErr}</span>
+                  ) : (
+                    <span className="text-amber-700">Add a name. It's required before publishing.</span>
+                  )}
+                </p>
+              )}
             </div>
           );
         })}
@@ -1042,13 +1149,22 @@ function SummaryCard({
   meta,
   published,
   locked,
+  expired,
   onPublish,
+  onDuplicate,
+  duplicating,
+  onDelete,
 }: {
   draft: Draft;
   meta: Proposal;
   published: boolean;
   locked: boolean;
+  expired: boolean;
   onPublish: () => void;
+  onDuplicate: () => void;
+  duplicating: boolean;
+  /** Only manually created proposals can be deleted (undefined for Claude-created ones). */
+  onDelete?: () => void;
 }) {
   const totals = useTotals(draft, meta.digits);
   const money = (minor: number) => formatMoney(minor, meta.currency, meta.digits);
@@ -1058,7 +1174,10 @@ function SummaryCard({
       <div className="p-5">
         <div className="flex items-center justify-between">
           <span className="text-[13px] font-medium text-zinc-500">{accepted ? "Accepted total" : "Total"}</span>
-          <StatusBadge status={meta.status} />
+          <span className="flex items-center gap-1.5">
+            {expired && <ExpiredBadge />}
+            <StatusBadge status={meta.status} />
+          </span>
         </div>
         <div className={cx("money mt-1.5 text-[30px] leading-10 font-semibold tracking-[-0.03em]", accepted ? "text-success-600" : "text-ink")}>
           {accepted ? money(meta.totals.total) : money(totals.base)}
@@ -1076,13 +1195,19 @@ function SummaryCard({
             className="w-full"
             toast={published ? "Public link copied" : "Link copied. It goes live once you publish."}
           />
+          <Button variant="ghost" className="w-full" onClick={onDuplicate} loading={duplicating}>
+            {!duplicating && <IconDuplicate className="size-4" />}
+            Duplicate proposal
+          </Button>
         </div>
       </div>
 
       <div className="border-t border-zinc-100 bg-zinc-50/50 px-5 py-4">
         <dl className="space-y-2 text-[13px]">
           <Row label="Client">{draft.clientName || "–"}</Row>
-          <Row label="Valid until">{draft.validUntil ? formatDate(draft.validUntil) : "No expiry"}</Row>
+          <Row label="Valid until">
+            <span className={cx(expired && "text-orange-700")}>{draft.validUntil ? formatDate(draft.validUntil) : "No expiry"}</span>
+          </Row>
           <Row label="Line items">{draft.lineItems.length}</Row>
         </dl>
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 py-2">
@@ -1105,6 +1230,16 @@ function SummaryCard({
             <span className="text-[11px] font-medium whitespace-nowrap text-zinc-400">Not live</span>
           )}
         </div>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="mt-3 hidden w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[13px] font-medium text-zinc-500 transition duration-150 hover:bg-rose-50 hover:text-rose-600 lg:flex"
+          >
+            <IconTrash className="size-3.5" />
+            Delete proposal
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1138,8 +1273,15 @@ function describe(a: Activity, acceptedBy: string | null): Described {
   const byClaude = a.meta?.via === "mcp";
   const by = byClaude ? " by Claude" : "";
   switch (a.type) {
-    case "CREATED":
-      return { title: `Created${by}`, icon: byClaude ? IconSparkle : IconFilePlus, tone: byClaude ? CLAUDE_TONE : NEUTRAL_TONE };
+    case "CREATED": {
+      const from = a.meta?.duplicatedTitle as string | undefined;
+      return {
+        title: from ? "Duplicated" : `Created${by}`,
+        detail: from ? `From “${from}”` : undefined,
+        icon: from ? IconDuplicate : byClaude ? IconSparkle : IconFilePlus,
+        tone: byClaude ? CLAUDE_TONE : NEUTRAL_TONE,
+      };
+    }
     case "EDITED": {
       const fields = Array.isArray(a.meta?.fields) ? (a.meta.fields as string[]).map((f) => FIELD_LABELS[f] ?? f) : [];
       return {

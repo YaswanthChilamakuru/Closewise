@@ -81,6 +81,14 @@ export function asSections(json: unknown): Section[] {
 /** Proposals in these statuses are final and cannot be edited or republished. */
 export const LOCKED_STATUSES = new Set<Proposal["status"]>(["ACCEPTED", "DECLINED"]);
 
+/**
+ * A quote is valid through the whole validUntil day (stored as UTC midnight). Expired = that day has passed
+ * and the client hasn't answered yet. Expired proposals can't be accepted until validUntil is extended.
+ */
+export function isProposalExpired(p: Pick<Proposal, "validUntil" | "status">, now = Date.now()): boolean {
+  return !LOCKED_STATUSES.has(p.status) && !!p.validUntil && p.validUntil.getTime() + 86_400_000 <= now;
+}
+
 /** Reasons a proposal is not ready to publish (empty array = ready). Shared by MCP and the web API. */
 export function publishProblems(p: Pick<Proposal, "sections" | "title" | "clientName"> & { lineItems: LineItem[] }): string[] {
   const problems: string[] = [];
@@ -120,6 +128,10 @@ export function summarize(p: FullProposal, opts: { headline: string; full?: bool
   out.push(`Currency: ${p.currency}${p.validUntil ? ` · Valid until: ${fmtDate(p.validUntil)}` : ""}`);
   out.push(`Proposal id: ${p.id}`);
   if (p.acceptedBy) out.push(`Accepted by: ${p.acceptedBy}${p.acceptedAt ? ` on ${fmtDate(p.acceptedAt)}` : ""}`);
+  if (isProposalExpired(p))
+    out.push(
+      `EXPIRED: the valid-until date (${fmtDate(p.validUntil!)}) has passed, so the client cannot accept it. Extend it with update_proposal (validUntil) if the offer still stands.`
+    );
   out.push("");
 
   if (opts.full) {

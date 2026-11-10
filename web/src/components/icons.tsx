@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   Clock,
   Copy,
+  CopyPlus,
   Eye,
   EyeOff,
   ExternalLink,
@@ -66,3 +67,4 @@ export const IconTrending = wrap(TrendingUp);
 export const IconTarget = wrap(Target);
 export const IconCircleCheck = wrap(CircleCheck);
 export const IconPrinter = wrap(Printer);
+export const IconDuplicate = wrap(CopyPlus);

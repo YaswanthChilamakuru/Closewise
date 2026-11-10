@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import { navigate, useLocation } from "./lib/router";
 import { ToastProvider, Spinner } from "./components/ui";
 import { AppShell } from "./components/AppShell";
+import { LogoMark } from "./components/Logo";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
@@ -41,8 +42,9 @@ function Routes() {
 
   if (user === undefined)
     return (
-      <div className="flex min-h-screen items-center justify-center text-zinc-400">
-        <Spinner className="size-6" />
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4" aria-busy="true" aria-label="Loading Closewise">
+        <LogoMark className="size-10 animate-pulse" />
+        <Spinner className="size-4 text-zinc-300" />
       </div>
     );
   if (!user) return pathname === "/login" ? <Login /> : null;

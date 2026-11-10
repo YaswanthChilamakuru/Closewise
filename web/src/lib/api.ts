@@ -17,12 +17,15 @@ export type ProposalRow = {
   digits: number;
   totals: Totals;
   validUntil: string | null;
+  /** Sent/viewed/draft whose valid-until day has passed (server rule). */
+  expired: boolean;
   updatedAt: string;
 };
 
 export type Stats = {
   openValue: Money[];
   openCount: number;
+  expiredCount: number;
   acceptedThisMonth: Money[];
   acceptedThisMonthCount: number;
   acceptanceRate: number | null;

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { ChevronRight } from "lucide-react";
 import { api, ApiError, type Proposal, type ProposalRow, type Stats } from "../lib/api";
-import { formatDate, formatMoney, formatMoneyList, relativeTime, todayYmd } from "../lib/format";
+import { formatDate, formatMoney, formatMoneyList, relativeTime } from "../lib/format";
 import { Link, navigate } from "../lib/router";
 import { usePolling } from "../lib/usePolling";
 import { AppShell } from "../components/AppShell";
-import { Avatar, Button, ClaudeBadge, Skeleton, StatusBadge, cx, useToast } from "../components/ui";
-import { IconAlert, IconFilePlus, IconPlug, IconPlus, IconSparkle, IconTarget, IconTrending, IconWallet } from "../components/icons";
+import { Avatar, Button, ClaudeBadge, ExpiredBadge, Skeleton, StatusBadge, cx, useToast } from "../components/ui";
+import { DeleteProposalDialog } from "../components/DeleteProposalDialog";
+import { IconAlert, IconFilePlus, IconPlug, IconPlus, IconSparkle, IconTarget, IconTrash, IconTrending, IconWallet } from "../components/icons";
 
 type Data = { proposals: ProposalRow[]; stats: Stats };
 
@@ -16,6 +17,7 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false);
   const [, setNow] = useState(Date.now()); // re-render relative times
   const toast = useToast();
+  const [deleteTarget, setDeleteTarget] = useState<ProposalRow | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -89,7 +91,7 @@ export default function Dashboard() {
           <EmptyState onCreate={createProposal} creating={creating} />
         ) : (
           <div className="card overflow-hidden">
-            <div className="hidden grid-cols-[minmax(0,1fr)_200px_130px_96px_20px] items-center gap-4 border-b border-zinc-100 bg-zinc-50/60 px-5 py-2.5 text-xs font-medium text-zinc-500 md:grid">
+            <div className="hidden grid-cols-[minmax(0,1fr)_200px_130px_96px_32px] items-center gap-4 border-b border-zinc-100 bg-zinc-50/60 px-5 py-2.5 text-xs font-medium text-zinc-500 md:grid">
               <span>Proposal</span>
               <span>Status</span>
               <span className="text-right">Value</span>
@@ -98,12 +100,23 @@ export default function Dashboard() {
             </div>
             <ul className="divide-y divide-zinc-100">
               {data.proposals.map((p) => (
-                <ProposalItem key={p.id} p={p} />
+                <ProposalItem key={p.id} p={p} onDelete={setDeleteTarget} />
               ))}
             </ul>
           </div>
         )}
       </section>
+
+      <DeleteProposalDialog
+        target={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={(id) => {
+          setDeleteTarget(null);
+          // Remove immediately, then refresh stats from the server.
+          setData((d) => (d ? { ...d, proposals: d.proposals.filter((x) => x.id !== id) } : d));
+          void load();
+        }}
+      />
     </AppShell>
   );
 }
@@ -118,7 +131,12 @@ function StatsRow({ stats }: { stats?: Stats }) {
         icon={IconWallet}
         label="Open value"
         values={stats ? formatMoneyList(stats.openValue, { compact: true }) : undefined}
-        hint={stats && (stats.openCount ? `${stats.openCount} awaiting a response` : "Nothing out with clients")}
+        hint={
+          stats &&
+          [stats.openCount ? `${stats.openCount} awaiting a response` : "Nothing out with clients", stats.expiredCount ? `${stats.expiredCount} expired` : ""]
+            .filter(Boolean)
+            .join(" · ")
+        }
       />
       <StatCard
         icon={IconTrending}
@@ -194,10 +212,10 @@ function StatCard({
 
 // ---------------------------------------------------------------- List
 
-function ProposalItem({ p }: { p: ProposalRow }) {
+function ProposalItem({ p, onDelete }: { p: ProposalRow; onDelete: (p: ProposalRow) => void }) {
   const amount = p.status === "ACCEPTED" ? p.totals.total : p.totals.base;
   const open = p.status === "SENT" || p.status === "VIEWED";
-  const expired = open && p.validUntil && p.validUntil < todayYmd();
+  const expired = p.expired;
   const sub =
     p.status === "ACCEPTED"
       ? p.totals.optionalSelected
@@ -207,10 +225,10 @@ function ProposalItem({ p }: { p: ProposalRow }) {
         ? `+ ${formatMoney(p.totals.optionalAll, p.currency, p.digits, { compact: true })} optional`
         : "";
   return (
-    <li>
+    <li className="group/item relative">
       <Link
         to={`/proposals/${p.id}`}
-        className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-4 py-4 transition duration-150 hover:bg-zinc-50/80 focus-visible:bg-zinc-50 sm:px-5 md:grid-cols-[minmax(0,1fr)_200px_130px_96px_20px] md:py-3.5"
+        className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-4 py-4 transition duration-150 hover:bg-zinc-50/80 focus-visible:bg-zinc-50 sm:px-5 md:grid-cols-[minmax(0,1fr)_200px_130px_96px_32px] md:py-3.5"
       >
         {/* Proposal */}
         <div className="flex min-w-0 items-center gap-3">
@@ -219,8 +237,8 @@ function ProposalItem({ p }: { p: ProposalRow }) {
             <div className="truncate text-sm font-medium text-ink">{p.title}</div>
             <div className="truncate text-[13px] text-zinc-500">
               {p.clientName}
-              {p.validUntil && open && (
-                <span className={cx("hidden sm:inline", expired && "text-rose-600")}>
+              {p.validUntil && (open || expired) && (
+                <span className={cx("hidden sm:inline", expired && "text-orange-700")}>
                   {" · "}
                   {expired ? "Expired" : "Valid until"} {formatDate(p.validUntil)}
                 </span>
@@ -238,6 +256,7 @@ function ProposalItem({ p }: { p: ProposalRow }) {
         {/* Status */}
         <div className="col-span-2 flex flex-wrap items-center gap-1.5 pl-12 md:order-2 md:col-span-1 md:pl-0">
           <StatusBadge status={p.status} />
+          {expired && <ExpiredBadge />}
           {p.source === "CLAUDE" && <ClaudeBadge />}
           <span className="ml-auto text-xs text-zinc-500 md:hidden">{relativeTime(p.updatedAt)}</span>
         </div>
@@ -246,11 +265,26 @@ function ProposalItem({ p }: { p: ProposalRow }) {
           {relativeTime(p.updatedAt)}
         </span>
         <ChevronRight
-          className="hidden size-4 text-zinc-300 transition duration-150 group-hover:translate-x-0.5 group-hover:text-zinc-500 md:order-5 md:block"
+          className={cx(
+            "hidden size-4 justify-self-end text-zinc-300 transition duration-150 md:order-5 md:block",
+            p.source === "MANUAL" ? "group-focus-within/item:opacity-0 group-hover/item:opacity-0" : "group-hover:translate-x-0.5 group-hover:text-zinc-500"
+          )}
           strokeWidth={1.75}
           aria-hidden
         />
       </Link>
+      {/* Outside the link: a real button, not nested inside the anchor. Only manually created proposals can be deleted. */}
+      {p.source === "MANUAL" && (
+      <button
+        type="button"
+        onClick={() => onDelete(p)}
+        aria-label={`Delete “${p.title}”`}
+        title="Delete proposal"
+        className="absolute top-1/2 right-4 hidden size-8 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-400 opacity-0 transition duration-150 group-hover/item:opacity-100 hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-rose-500/20 md:flex sm:right-5"
+      >
+        <IconTrash className="size-4" />
+      </button>
+      )}
     </li>
   );
 }
@@ -301,7 +335,7 @@ function EmptyState({ onCreate, creating }: { onCreate: () => void; creating: bo
       </div>
       <p className="relative mt-8 inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-500">
         <IconSparkle className="size-3 text-[#D97757]" />
-        Try: “Draft a proposal for a logo design for Acme Corp, ₹25,000.”
+        Try: “Draft a logo design proposal for my client, ₹25,000.”
       </p>
     </div>
   );

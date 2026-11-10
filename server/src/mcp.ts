@@ -15,6 +15,7 @@ import {
   summarize,
   toMinor,
   publishProblems,
+  isProposalExpired,
   LOCKED_STATUSES as LOCKED,
 } from "./proposals";
 
@@ -136,7 +137,7 @@ How to write a good proposal:
 
 The proposal is created as a DRAFT and is NOT visible to the client until publish_proposal is called. Each call logs a CREATED activity. ${URL_NOTE}`,
       inputSchema: {
-        title: z.string().trim().min(1).max(200).describe("Proposal title, e.g. 'Website redesign for Acme Bakery'."),
+        title: z.string().trim().min(1).max(200).describe("Proposal title, e.g. 'Website redesign' or 'Brand identity package'."),
         clientName: z.string().trim().min(1).max(200).describe("Client's company or person name."),
         clientEmail: z.email().optional().describe("Client's email address, if known."),
         currency: currencySchema.default("INR"),
@@ -207,7 +208,7 @@ Optional status filter: DRAFT (not yet sent), SENT (published, not yet opened), 
         const addOns = t.optionalAll && p.status !== "ACCEPTED" ? ` (+${formatMoney(t.optionalAll, p.currency)} optional)` : "";
         return [
           `${i + 1}. ${p.title}: ${p.clientName}`,
-          `   Status: ${p.status} · Total: ${formatMoney(amount, p.currency)}${addOns} · Updated: ${p.updatedAt.toISOString().slice(0, 10)}`,
+          `   Status: ${p.status}${isProposalExpired(p) ? " (EXPIRED: valid-until date has passed)" : ""} · Total: ${formatMoney(amount, p.currency)}${addOns} · Updated: ${p.updatedAt.toISOString().slice(0, 10)}`,
           `   id: ${p.id}`,
           `   Edit URL: ${editUrl(p)}`,
           `   Public URL: ${publicUrl(p)}${p.status === "DRAFT" ? " (draft, not live)" : ""}`,

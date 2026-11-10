@@ -3,7 +3,8 @@ import { api, ApiError, type User } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Logo } from "../components/Logo";
 import { Button } from "../components/ui";
-import { IconAlert, IconCircleCheck, IconSparkle } from "../components/icons";
+import { ProposalPreview } from "../components/ProposalPreview";
+import { IconAlert, IconCircleCheck } from "../components/icons";
 
 const POINTS = [
   "Your own Claude drafts the proposal over MCP",
@@ -19,10 +20,26 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Client-side checks mirror the server's rules; errors show after the first submit attempt.
+  const fieldErrors: Partial<Record<"name" | "email" | "password", string>> = {};
+  if (mode === "signup" && !name.trim()) fieldErrors.name = "Enter your name";
+  if (!email.trim()) fieldErrors.email = "Enter your email";
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) fieldErrors.email = "Enter a valid email address";
+  if (!password) fieldErrors.password = "Enter your password";
+  else if (mode === "signup" && password.length < 8) fieldErrors.password = "Use at least 8 characters";
+  const shown = submitted ? fieldErrors : {};
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setSubmitted(true);
+    const first = (["name", "email", "password"] as const).find((k) => fieldErrors[k]);
+    if (first) {
+      document.getElementById(first)?.focus();
+      return;
+    }
     setBusy(true);
     try {
       const body = mode === "login" ? { email, password } : { name, email, password };
@@ -38,7 +55,17 @@ export default function Login() {
   const switchMode = () => {
     setMode((m) => (m === "login" ? "signup" : "login"));
     setError(null);
+    setSubmitted(false);
   };
+
+  const errorText = (k: keyof typeof fieldErrors) =>
+    shown[k] ? (
+      <p id={`${k}-error`} className="mt-1.5 animate-fade-in text-xs text-rose-600">
+        {shown[k]}
+      </p>
+    ) : null;
+  const invalidProps = (k: keyof typeof fieldErrors) =>
+    shown[k] ? { "aria-invalid": true, "aria-describedby": `${k}-error` } : {};
 
   return (
     <div className="grid min-h-screen bg-white lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
@@ -60,7 +87,15 @@ export default function Login() {
                   <label className="label" htmlFor="name">
                     Your name
                   </label>
-                  <input id="name" className="field h-10" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required />
+                  <input
+                    id="name"
+                    className={`field h-10 ${shown.name ? "field-invalid" : ""}`}
+                    autoComplete="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    {...invalidProps("name")}
+                  />
+                  {errorText("name")}
                 </div>
               )}
               <div>
@@ -70,14 +105,15 @@ export default function Login() {
                 <input
                   id="email"
                   type="email"
-                  className="field h-10"
+                  className={`field h-10 ${shown.email ? "field-invalid" : ""}`}
                   autoComplete="email"
                   autoFocus
-                  placeholder="you@studio.com"
+                  placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
+                  {...invalidProps("email")}
                 />
+                {errorText("email")}
               </div>
               <div>
                 <label className="label" htmlFor="password">
@@ -86,13 +122,14 @@ export default function Login() {
                 <input
                   id="password"
                   type="password"
-                  className="field h-10"
+                  className={`field h-10 ${shown.password ? "field-invalid" : ""}`}
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={mode === "signup" ? "At least 8 characters" : undefined}
-                  required
+                  {...invalidProps("password")}
                 />
+                {errorText("password")}
               </div>
 
               {error && (
@@ -129,40 +166,8 @@ export default function Login() {
           className="absolute inset-0 opacity-[0.35] [background-image:linear-gradient(rgb(11_11_15/0.05)_1px,transparent_1px),linear-gradient(90deg,rgb(11_11_15/0.05)_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]"
         />
         <div className="relative flex h-full flex-col justify-center px-14 xl:px-20">
-          {/* Mini proposal preview */}
-          <div className="w-full max-w-md rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-pop">
-            <div className="flex items-center justify-between">
-              <span className="inline-flex h-[22px] items-center gap-1.5 rounded-full bg-success-50 px-2 text-xs font-medium text-success-700 ring-1 ring-success-200/80 ring-inset">
-                <span className="size-1.5 rounded-full bg-success-500" /> Accepted
-              </span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-zinc-500">
-                <IconSparkle className="size-3 text-[#D97757]" /> via Claude
-              </span>
-            </div>
-            <div className="mt-4 text-[17px] font-semibold tracking-[-0.02em] text-ink">Logo design for Acme Corp</div>
-            <div className="mt-0.5 text-sm text-zinc-500">Prepared for Acme Corp</div>
-            <div className="mt-5 space-y-2 border-t border-zinc-100 pt-4 text-sm">
-              <div className="flex justify-between">
-                <span className="text-zinc-600">Logo design</span>
-                <span className="money text-ink">₹25,000</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="flex items-center gap-2 text-zinc-600">
-                  <span className="grid size-4 place-items-center rounded bg-accent-600 text-white">
-                    <svg viewBox="0 0 12 12" className="size-2.5" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M2.5 6.5 5 9l4.5-6" />
-                    </svg>
-                  </span>
-                  Brand guidelines
-                </span>
-                <span className="money text-ink">₹8,000</span>
-              </div>
-            </div>
-            <div className="mt-4 flex items-baseline justify-between border-t border-zinc-100 pt-4">
-              <span className="text-sm font-medium text-zinc-600">Total</span>
-              <span className="money text-xl font-semibold text-ink">₹33,000</span>
-            </div>
-          </div>
+          {/* Animated demo card: hardcoded generic samples only, no data fetched */}
+          <ProposalPreview />
 
           <ul className="mt-10 space-y-3">
             {POINTS.map((p) => (

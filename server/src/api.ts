@@ -11,6 +11,7 @@ import {
   editUrl,
   newSlug,
   publicUrl,
+  isProposalExpired,
   publishProblems,
   toMinor,
 } from "./proposals";
@@ -33,6 +34,7 @@ function listRow(p: Proposal & { lineItems: LineItem[] }) {
     digits: currencyDigits(p.currency),
     totals: computeTotals(p.lineItems, p.selectedOptionalIds),
     validUntil: ymd(p.validUntil),
+    expired: isProposalExpired(p),
     updatedAt: p.updatedAt.toISOString(),
   };
 }
@@ -101,12 +103,17 @@ function computeStats(rows: (Proposal & { lineItems: LineItem[] })[]) {
   let sentCount = 0;
   let acceptedCount = 0;
   let openCount = 0;
+  let expiredCount = 0;
   for (const p of rows) {
     const t = computeTotals(p.lineItems, p.selectedOptionalIds);
     if (p.status !== "DRAFT") sentCount++;
     if (p.status === "SENT" || p.status === "VIEWED") {
-      openCount++;
-      addMoney(open, p.currency, t.base);
+      // Expired quotes can't be accepted, so they don't count as open value.
+      if (isProposalExpired(p, now.getTime())) expiredCount++;
+      else {
+        openCount++;
+        addMoney(open, p.currency, t.base);
+      }
     }
     if (p.status === "ACCEPTED") {
       acceptedCount++;
@@ -119,6 +126,8 @@ function computeStats(rows: (Proposal & { lineItems: LineItem[] })[]) {
   return {
     openValue: moneyList(open),
     openCount,
+    /** Sent/viewed proposals whose valid-until date has passed (excluded from openValue). */
+    expiredCount,
     acceptedThisMonth: moneyList(acceptedMonth),
     acceptedThisMonthCount,
     /** Accepted ÷ everything ever sent (non-draft). null when nothing has been sent yet. */
@@ -306,6 +315,55 @@ apiRouter.patch("/proposals/:id", async (req: Request<{ id: string }>, res) => {
   }
   const p = await loadOwned(userOf(req).id, existing.id);
   res.json({ proposal: fullProposal(p!) });
+});
+
+/**
+ * Delete a proposal the user created manually (source MANUAL, any status). Proposals created by Claude over MCP
+ * can't be deleted. Line items and activity go with it; the public link stops working.
+ */
+apiRouter.delete("/proposals/:id", async (req: Request<{ id: string }>, res) => {
+  const where = { id: req.params.id, userId: userOf(req).id };
+  const r = await prisma.proposal.deleteMany({ where: { ...where, source: "MANUAL" } });
+  if (r.count === 1) return res.json({ ok: true });
+  const exists = await prisma.proposal.findFirst({ where, select: { source: true } });
+  if (!exists) return bad(res, 404, "Proposal not found");
+  return bad(res, 403, "Proposals created by Claude can't be deleted. Only manually created proposals can be deleted.");
+});
+
+/**
+ * Duplicate: a fresh DRAFT with the same client, sections and line items (new ids, new public link),
+ * valid for 30 days from today. Works for any status, e.g. to re-send an expired or declined quote.
+ */
+apiRouter.post("/proposals/:id/duplicate", async (req: Request<{ id: string }>, res) => {
+  const src = await loadOwned(userOf(req).id, req.params.id);
+  if (!src) return bad(res, 404, "Proposal not found");
+  const title = /\(copy\)$/i.test(src.title) ? src.title : `${src.title} (copy)`.slice(0, 200);
+  const p = await prisma.proposal.create({
+    data: {
+      userId: src.userId,
+      slug: newSlug(),
+      title,
+      clientName: src.clientName,
+      clientEmail: src.clientEmail,
+      currency: src.currency,
+      validUntil: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 30)),
+      sections: asSections(src.sections),
+      source: "MANUAL",
+      lineItems: {
+        create: byPosition(src.lineItems).map((li, position) => ({
+          name: li.name,
+          description: li.description,
+          quantity: li.quantity,
+          unitPrice: li.unitPrice,
+          optional: li.optional,
+          position,
+        })),
+      },
+      activities: { create: { type: "CREATED", meta: { via: "web", duplicatedFrom: src.id, duplicatedTitle: src.title } } },
+    },
+    include: fullInclude,
+  });
+  res.status(201).json({ proposal: fullProposal(p) });
 });
 
 apiRouter.post("/proposals/:id/publish", async (req: Request<{ id: string }>, res) => {

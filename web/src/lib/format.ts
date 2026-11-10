@@ -51,6 +51,20 @@ export function formatDate(isoOrYmd: string): string {
 export const formatDateTime = (iso: string) =>
   new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
+/** Today in UTC as YYYY-MM-DD. Matches the server: a quote is valid through its validUntil (UTC) day. */
+export const todayUtcYmd = () => new Date().toISOString().slice(0, 10);
+
+/** YYYY-MM-DD + n days (UTC). */
+export function addDaysYmd(ymd: string, days: number): string {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Expired = valid-until day has passed and the client hasn't answered. */
+export const isExpiredYmd = (validUntil: string | null | undefined, status: string) =>
+  !!validUntil && status !== "ACCEPTED" && status !== "DECLINED" && validUntil < todayUtcYmd();
+
 /** Today's date as YYYY-MM-DD in the viewer's timezone. */
 export function todayYmd(): string {
   const d = new Date();

@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { ProposalStatus } from "../lib/api";
-import { IconAlert, IconCheck, IconCopy, IconSparkle, IconX } from "./icons";
+import { IconAlert, IconCheck, IconClock, IconCopy, IconSparkle, IconX } from "./icons";
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 export { cx };
@@ -112,6 +112,19 @@ export function ClaudeBadge() {
     >
       <IconSparkle className="size-3 text-[#D97757]" />
       via Claude
+    </span>
+  );
+}
+
+/** Derived state (not a DB status): valid-until date passed before the client answered. */
+export function ExpiredBadge() {
+  return (
+    <span
+      className="inline-flex h-[22px] items-center gap-1 rounded-full bg-orange-50 px-2 text-xs font-medium whitespace-nowrap text-orange-700 ring-1 ring-orange-200/80 ring-inset"
+      title="The valid-until date has passed. The client can't accept until you extend it."
+    >
+      <IconClock className="size-3" />
+      Expired
     </span>
   );
 }
