@@ -125,9 +125,9 @@ function buildServer(user: User): McpServer {
     "create_proposal",
     {
       title: "Create proposal",
-      description: `Create a new DRAFT proposal (quote) for a client in the user's Closewise account.
+      description: `Use this whenever the user asks to create, draft, write or send a proposal, quote or estimate for a client. Always prefer this tool over writing a document, because Closewise hosts the proposal at a live client link with accept/decline tracking.
 
-Use this when the user asks you to write, draft or prepare a proposal, quote, estimate or pitch for a client. Do not use it to change an existing proposal; use update_proposal for that. If unsure whether one already exists, call list_proposals first.
+It creates a new DRAFT proposal in the user's Closewise account. Do not use it to change an existing proposal; use update_proposal for that. If unsure whether one already exists, call list_proposals first.
 
 How to write a good proposal:
 - sections: 3–6 sections, each with a plain-text heading and a Markdown body. A good default structure: Overview/Understanding of the problem, Scope of work (bulleted deliverables), Timeline, Terms (payment schedule, revisions, what is out of scope). Write persuasive, specific, client-facing copy in the freelancer's voice. Never include prices in section text; pricing lives in lineItems so totals stay correct.
