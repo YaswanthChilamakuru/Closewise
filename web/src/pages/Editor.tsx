@@ -1,22 +1,27 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type TextareaHTMLAttributes } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { api, ApiError, type Activity, type Proposal } from "../lib/api";
 import { formatDate, formatDateTime, formatMoney, lineTotalMinor, relativeTime, todayYmd } from "../lib/format";
 import { Link } from "../lib/router";
 import { usePolling } from "../lib/usePolling";
 import { AppShell } from "../components/AppShell";
 import { Markdown } from "../components/Markdown";
-import { Button, ClaudeBadge, CopyButton, IconButton, Modal, Spinner, StatusBadge, cx, useToast } from "../components/ui";
+import { Button, ClaudeBadge, CopyButton, IconButton, Modal, Skeleton, Spinner, StatusBadge, cx, useToast } from "../components/ui";
 import {
   IconAlert,
   IconArrowLeft,
   IconCheck,
+  IconCircleCheck,
   IconDown,
   IconExternal,
+  IconEye,
+  IconFilePlus,
+  IconPencil,
   IconPlus,
   IconSend,
   IconSparkle,
   IconTrash,
   IconUp,
+  IconX,
 } from "../components/icons";
 
 // ---------------------------------------------------------------------------
@@ -290,13 +295,21 @@ export default function Editor({ id }: { id: string }) {
   if (loadError)
     return (
       <AppShell>
-        <div className="card mx-auto max-w-md px-6 py-14 text-center">
-          <h1 className="text-lg font-semibold">{loadError.status === 404 ? "Proposal not found" : "Couldn't load this proposal"}</h1>
-          <p className="mt-2 text-sm text-zinc-500">
+        <div className="card mx-auto max-w-md animate-pop-in px-6 py-14 text-center">
+          <div className="mx-auto grid size-11 place-items-center rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-500">
+            <IconAlert className="size-5" />
+          </div>
+          <h1 className="mt-4 text-base font-semibold text-ink">
+            {loadError.status === 404 ? "Proposal not found" : "Couldn't load this proposal"}
+          </h1>
+          <p className="mt-1.5 text-sm text-zinc-500">
             {loadError.status === 404 ? "It may have been deleted, or it belongs to another account." : loadError.message}
           </p>
-          <Link to="/" className="mt-6 inline-flex text-sm font-medium text-accent-600 hover:text-accent-700">
-            ← Back to proposals
+          <Link
+            to="/"
+            className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-accent-600 transition duration-150 hover:text-accent-700"
+          >
+            <IconArrowLeft className="size-4" /> Back to proposals
           </Link>
         </div>
       </AppShell>
@@ -305,86 +318,80 @@ export default function Editor({ id }: { id: string }) {
   if (!meta || !draft)
     return (
       <AppShell wide>
-        <div className="flex items-center justify-center py-32 text-zinc-400">
-          <Spinner className="size-6" />
-        </div>
+        <EditorSkeleton />
       </AppShell>
     );
 
   const locked = meta.locked;
   const published = meta.status !== "DRAFT";
+  const openPublish = () => {
+    setPublishError(null);
+    setPublishOpen(true);
+  };
 
   return (
     <AppShell wide>
-      {/* Top bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 hover:text-zinc-900">
+      {/* Breadcrumb + save state */}
+      <div className="flex min-h-9 items-center gap-2 text-sm">
+        <Link to="/" className="inline-flex shrink-0 items-center gap-1.5 font-medium text-zinc-500 transition duration-150 hover:text-ink">
           <IconArrowLeft className="size-4" />
           Proposals
         </Link>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {!locked && <SaveIndicator state={saveState} onRetry={() => void flush()} />}
-          <CopyButton
-            text={meta.publicUrl}
-            label="Copy public link"
-            variant={published ? "primary" : "secondary"}
-            toast={published ? "Public link copied" : "Link copied. It goes live once you publish."}
-          />
-          {!published ? (
-            <Button variant="primary" onClick={() => (setPublishError(null), setPublishOpen(true))} disabled={locked}>
-              <IconSend className="size-4" />
-              Publish
-            </Button>
-          ) : (
-            <span className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-50 px-3 text-sm font-medium text-emerald-700 ring-1 ring-emerald-200 ring-inset">
-              <IconCheck className="size-4" />
-              Published
-            </span>
-          )}
-        </div>
+        <span className="text-zinc-300">/</span>
+        <span className="min-w-0 truncate text-zinc-700">{draft.title || "Untitled"}</span>
+        <div className="ml-auto shrink-0">{!locked && <SaveIndicator state={saveState} onRetry={() => void flush()} />}</div>
       </div>
 
-      {/* Title */}
-      <div className="mt-6">
-        <input
-          aria-label="Proposal title"
-          className={cx(
-            "w-full rounded-lg bg-transparent px-2 py-1 -mx-2 text-2xl font-semibold tracking-tight text-zinc-900 transition outline-none placeholder:text-zinc-300 hover:bg-white focus:bg-white focus:ring-3 focus:ring-accent-100 sm:text-3xl",
-            errors.title && "ring-2 ring-rose-200"
-          )}
-          value={draft.title}
-          placeholder="Proposal title"
-          disabled={locked}
-          onChange={(e) => update((d) => ({ ...d, title: e.target.value }))}
-        />
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <StatusBadge status={meta.status} />
-          {meta.source === "CLAUDE" && <ClaudeBadge />}
-          <span className="text-sm text-zinc-500">Created {formatDate(meta.createdAt)}</span>
-          {errors.title && <span className="text-sm text-rose-600">{errors.title}</span>}
-        </div>
-      </div>
+      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-8">
+        <div className="min-w-0 space-y-6">
+          {/* Title */}
+          <div>
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <StatusBadge status={meta.status} />
+              {meta.source === "CLAUDE" && <ClaudeBadge />}
+              <span className="ml-1 text-[13px] text-zinc-500">Created {formatDate(meta.createdAt)}</span>
+            </div>
+            <input
+              aria-label="Proposal title"
+              className={cx(
+                "-mx-2.5 w-[calc(100%+1.25rem)] rounded-xl border border-transparent bg-transparent px-2.5 py-1.5 text-[26px] leading-tight font-semibold tracking-[-0.03em] text-ink transition duration-150 outline-none placeholder:text-zinc-300 hover:border-zinc-200 hover:bg-white focus:border-accent-500 focus:bg-white focus:ring-4 focus:ring-accent-500/10 disabled:hover:border-transparent disabled:hover:bg-transparent sm:text-[32px]",
+                errors.title && "border-rose-300"
+              )}
+              value={draft.title}
+              placeholder="Proposal title"
+              disabled={locked}
+              onChange={(e) => update((d) => ({ ...d, title: e.target.value }))}
+            />
+            {errors.title && <p className="mt-1 text-[13px] text-rose-600">{errors.title}</p>}
+          </div>
 
-      {locked && (
-        <div
-          className={cx(
-            "mt-6 flex items-start gap-2 rounded-xl px-4 py-3 text-sm",
-            meta.status === "ACCEPTED" ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"
+          {locked && (
+            <div
+              className={cx(
+                "flex animate-pop-in items-start gap-2.5 rounded-xl border px-4 py-3 text-sm",
+                meta.status === "ACCEPTED" ? "border-success-200 bg-success-50 text-success-700" : "border-rose-200 bg-rose-50 text-rose-700"
+              )}
+            >
+              {meta.status === "ACCEPTED" ? <IconCircleCheck className="mt-0.5 size-4 shrink-0" /> : <IconAlert className="mt-0.5 size-4 shrink-0" />}
+              <span>
+                {meta.status === "ACCEPTED"
+                  ? `Accepted${meta.acceptedBy ? ` by ${meta.acceptedBy}` : ""}${meta.acceptedAt ? ` on ${formatDate(meta.acceptedAt)}` : ""}.`
+                  : "Declined by the client."}{" "}
+                This proposal is final and can no longer be edited.
+              </span>
+            </div>
           )}
-        >
-          <IconAlert className="mt-0.5 size-4 shrink-0" />
-          <span>
-            {meta.status === "ACCEPTED"
-              ? `Accepted${meta.acceptedBy ? ` by ${meta.acceptedBy}` : ""}${meta.acceptedAt ? ` on ${formatDate(meta.acceptedAt)}` : ""}.`
-              : "Declined by the client."}{" "}
-            This proposal is final and can no longer be edited.
-          </span>
-        </div>
-      )}
 
-      <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-8">
-          {/* Details */}
+          {/* Mobile/tablet actions (desktop has them in the sticky summary) */}
+          <div className="flex flex-wrap gap-2 lg:hidden">
+            <PublishControls published={published} locked={locked} onPublish={openPublish} />
+            <CopyButton
+              text={meta.publicUrl}
+              label="Copy link"
+              toast={published ? "Public link copied" : "Link copied. It goes live once you publish."}
+            />
+          </div>
+
           <Panel title="Client & validity">
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Client name" error={errors.clientName}>
@@ -421,16 +428,12 @@ export default function Editor({ id }: { id: string }) {
             </div>
           </Panel>
 
-          {/* Sections */}
           <SectionsEditor draft={draft} update={update} locked={locked} />
-
-          {/* Pricing */}
           <LineItemsEditor draft={draft} update={update} locked={locked} meta={meta} errors={errors} />
         </div>
 
-        {/* Sidebar */}
-        <aside className="space-y-6 lg:sticky lg:top-20">
-          <SummaryCard draft={draft} meta={meta} />
+        <aside className="space-y-4 lg:sticky lg:top-20">
+          <SummaryCard draft={draft} meta={meta} published={published} locked={locked} onPublish={openPublish} />
           <ActivityTimeline activities={meta.activities} acceptedBy={meta.acceptedBy} />
         </aside>
       </div>
@@ -439,6 +442,11 @@ export default function Editor({ id }: { id: string }) {
         open={publishOpen}
         onClose={() => !publishing && setPublishOpen(false)}
         title={`Publish to ${draft.clientName || "your client"}?`}
+        icon={
+          <span className="grid size-10 place-items-center rounded-xl bg-accent-50 text-accent-600 ring-1 ring-accent-200/60 ring-inset">
+            <IconSend className="size-5" />
+          </span>
+        }
         footer={
           <>
             <Button onClick={() => setPublishOpen(false)} disabled={publishing}>
@@ -455,7 +463,7 @@ export default function Editor({ id }: { id: string }) {
           editing afterwards: changes go live immediately.
         </p>
         {publishError && (
-          <div className="mt-4 flex items-start gap-2 rounded-lg bg-rose-50 px-3 py-2.5 text-rose-700" role="alert">
+          <div className="mt-4 flex animate-pop-in items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-rose-700" role="alert">
             <IconAlert className="mt-0.5 size-4 shrink-0" />
             {publishError}
           </div>
@@ -469,14 +477,84 @@ export default function Editor({ id }: { id: string }) {
 // Building blocks
 // ---------------------------------------------------------------------------
 
-function Panel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+function EditorSkeleton() {
   return (
-    <section className="card p-5 sm:p-6">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-zinc-900">{title}</h2>
+    <div>
+      <Skeleton className="h-5 w-48" />
+      <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-6">
+          <div>
+            <Skeleton className="h-5 w-40 rounded-full" />
+            <Skeleton className="mt-4 h-9 w-2/3" />
+          </div>
+          <div className="card space-y-4 p-6">
+            <Skeleton className="h-4 w-32" />
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Skeleton className="h-9" />
+              <Skeleton className="h-9" />
+              <Skeleton className="h-9" />
+            </div>
+          </div>
+          <div className="card h-56 p-6">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="mt-6 h-3 w-full" />
+            <Skeleton className="mt-3 h-3 w-5/6" />
+            <Skeleton className="mt-3 h-3 w-4/6" />
+          </div>
+        </div>
+        <div className="card hidden h-80 p-6 lg:block">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="mt-4 h-9 w-40" />
+          <Skeleton className="mt-8 h-10 w-full" />
+          <Skeleton className="mt-2 h-10 w-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PublishControls({
+  published,
+  locked,
+  onPublish,
+  block,
+}: {
+  published: boolean;
+  locked: boolean;
+  onPublish: () => void;
+  block?: boolean;
+}) {
+  if (!published)
+    return (
+      <Button variant="primary" size={block ? "lg" : "md"} onClick={onPublish} disabled={locked} className={cx(block && "w-full")}>
+        <IconSend className="size-4" />
+        Publish proposal
+      </Button>
+    );
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 text-sm font-medium text-zinc-700",
+        block ? "h-10 w-full" : "h-9"
+      )}
+    >
+      <IconCheck className="size-4 text-accent-600" />
+      Published
+    </span>
+  );
+}
+
+function Panel({ title, description, action, children }: { title: string; description?: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="card">
+      <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-5 py-3.5 sm:px-6">
+        <div>
+          <h2 className="text-sm font-semibold text-ink">{title}</h2>
+          {description && <p className="mt-0.5 text-xs text-zinc-500">{description}</p>}
+        </div>
         {action}
       </div>
-      {children}
+      <div className="p-5 sm:p-6">{children}</div>
     </section>
   );
 }
@@ -514,7 +592,7 @@ function SaveIndicator({ state, onRetry }: { state: SaveState; onRetry: () => vo
     return () => window.clearInterval(t);
   }, [state.kind]);
 
-  const base = "inline-flex h-9 items-center gap-1.5 px-2 text-sm";
+  const base = "inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[13px] transition duration-150";
   switch (state.kind) {
     case "saving":
       return (
@@ -523,18 +601,23 @@ function SaveIndicator({ state, onRetry }: { state: SaveState; onRetry: () => vo
         </span>
       );
     case "unsaved":
-      return <span className={cx(base, "text-zinc-400")}>Unsaved changes</span>;
+      return (
+        <span className={cx(base, "text-zinc-500")}>
+          <span className="size-1.5 rounded-full bg-amber-400" /> Unsaved changes
+        </span>
+      );
     case "invalid":
       return (
-        <span className={cx(base, "text-amber-700")} title={state.message}>
-          <IconAlert className="size-4" /> Not saved: {state.message.toLowerCase()}
+        <span className={cx(base, "max-w-[60vw] bg-amber-50 text-amber-700")} title={state.message}>
+          <IconAlert className="size-3.5 shrink-0" />
+          <span className="truncate">Not saved: {state.message.toLowerCase()}</span>
         </span>
       );
     case "error":
       return (
-        <span className={cx(base, "text-rose-600")}>
-          <IconAlert className="size-4" />
-          <span className="max-w-60 truncate" title={state.message}>
+        <span className={cx(base, "max-w-[60vw] bg-rose-50 text-rose-700")}>
+          <IconAlert className="size-3.5 shrink-0" />
+          <span className="truncate" title={state.message}>
             {state.message}
           </span>
           <button type="button" onClick={onRetry} className="font-medium underline underline-offset-2 hover:text-rose-800">
@@ -545,7 +628,7 @@ function SaveIndicator({ state, onRetry }: { state: SaveState; onRetry: () => vo
     case "saved":
       return (
         <span className={cx(base, "text-zinc-500")} title={`Saved ${new Date(state.at).toLocaleTimeString()}`}>
-          <IconCheck className="size-4 text-emerald-600" /> Saved
+          <IconCheck className="size-3.5" /> Saved
         </span>
       );
   }
@@ -573,11 +656,16 @@ function Switch({ checked, onChange, disabled, label }: { checked: boolean; onCh
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cx(
-        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition focus-visible:ring-3 focus-visible:ring-accent-200 focus-visible:outline-none disabled:opacity-50",
-        checked ? "bg-accent-600" : "bg-zinc-200"
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition duration-150 focus-visible:ring-3 focus-visible:ring-accent-500/25 disabled:opacity-50",
+        checked ? "bg-accent-600" : "bg-zinc-200 hover:bg-zinc-300"
       )}
     >
-      <span className={cx("inline-block size-4 rounded-full bg-white shadow transition", checked ? "translate-x-4.5" : "translate-x-0.5")} />
+      <span
+        className={cx(
+          "inline-block size-4 rounded-full bg-white shadow-[0_1px_2px_rgb(0_0_0/0.2)] transition duration-150",
+          checked ? "translate-x-4.5" : "translate-x-0.5"
+        )}
+      />
     </button>
   );
 }
@@ -602,9 +690,9 @@ function SectionsEditor({ draft, update, locked }: { draft: Draft; update: Updat
 
   return (
     <section>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-3 flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-900">Sections</h2>
+          <h2 className="text-sm font-semibold text-ink">Sections</h2>
           <p className="mt-0.5 text-xs text-zinc-500">Markdown supported: **bold**, lists, links.</p>
         </div>
         {!locked && (
@@ -619,9 +707,12 @@ function SectionsEditor({ draft, update, locked }: { draft: Draft; update: Updat
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {draft.sections.length === 0 && (
-          <div className="card px-6 py-10 text-center text-sm text-zinc-500">No sections yet. Add an overview to get started.</div>
+          <div className="card flex flex-col items-center px-6 py-10 text-center">
+            <IconPencil className="size-5 text-zinc-400" />
+            <p className="mt-3 text-sm text-zinc-500">No sections yet. Add an overview to get started.</p>
+          </div>
         )}
         {draft.sections.map((s, i) => (
           <SectionCard
@@ -659,14 +750,16 @@ function SectionCard({
 }) {
   const [tab, setTab] = useState<"write" | "preview">("write");
   return (
-    <div className="card overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-zinc-100 px-4 py-2.5 sm:px-5">
-        <span className="text-xs font-medium text-zinc-400 tabular-nums">{String(index + 1).padStart(2, "0")}</span>
+    <div className="card group/section overflow-hidden transition duration-150 focus-within:border-zinc-300 focus-within:shadow-lift">
+      <div className="flex items-center gap-2 border-b border-zinc-100 px-3 py-2 sm:px-4">
+        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-zinc-100 text-[11px] font-semibold text-zinc-500 tabular-nums">
+          {index + 1}
+        </span>
         <input
           aria-label="Section heading"
           className={cx(
-            "min-w-0 flex-1 rounded-md bg-transparent px-1.5 py-1 font-semibold text-zinc-900 outline-none placeholder:text-zinc-300 focus:bg-zinc-50",
-            !section.heading.trim() && "ring-1 ring-amber-300"
+            "min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 text-[15px] font-semibold tracking-[-0.01em] text-ink transition duration-150 outline-none placeholder:text-zinc-300 hover:border-zinc-200 focus:border-accent-500 focus:ring-3 focus:ring-accent-500/10 disabled:hover:border-transparent",
+            !section.heading.trim() && "border-amber-300"
           )}
           value={section.heading}
           placeholder="Section heading"
@@ -679,14 +772,17 @@ function SectionCard({
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={cx("rounded-md px-2 py-1 capitalize", tab === t ? "bg-white text-zinc-900 shadow-xs" : "text-zinc-500")}
+              className={cx(
+                "rounded-md px-2 py-1 capitalize transition duration-150",
+                tab === t ? "bg-white text-ink shadow-[0_1px_2px_rgb(0_0_0/0.08)]" : "text-zinc-500"
+              )}
             >
               {t}
             </button>
           ))}
         </div>
         {!locked && (
-          <div className="flex items-center">
+          <div className="flex items-center transition duration-150 lg:opacity-0 lg:group-focus-within/section:opacity-100 lg:group-hover/section:opacity-100">
             <IconButton label="Move up" onClick={() => onMove(-1)} disabled={index === 0}>
               <IconUp className="size-4" />
             </IconButton>
@@ -703,15 +799,15 @@ function SectionCard({
         <div className={cx(tab === "preview" && "hidden lg:block")}>
           <AutoTextarea
             aria-label={`${section.heading || "Section"} content`}
-            className="block min-h-40 w-full resize-none bg-transparent px-4 py-4 text-sm leading-relaxed text-zinc-800 outline-none placeholder:text-zinc-400 sm:px-5"
+            className="block min-h-40 w-full resize-none bg-transparent px-4 py-4 font-mono text-[13px] leading-relaxed text-zinc-700 outline-none placeholder:text-zinc-400 sm:px-5"
             value={section.body}
             placeholder={"Write in Markdown…\n\n- Deliverable one\n- Deliverable two"}
             disabled={locked}
             onChange={(e) => onChange({ body: e.target.value })}
           />
         </div>
-        <div className={cx("bg-zinc-50/60 px-4 py-4 sm:px-5", tab === "write" && "hidden lg:block")}>
-          <div className="mb-2 hidden text-[11px] font-medium tracking-wide text-zinc-400 uppercase lg:block">Preview</div>
+        <div className={cx("bg-zinc-50/50 px-4 py-4 sm:px-5", tab === "write" && "hidden lg:block")}>
+          <div className="mb-2 hidden text-[11px] font-medium tracking-wider text-zinc-400 uppercase lg:block">Preview</div>
           {section.body.trim() ? <Markdown>{section.body}</Markdown> : <p className="text-sm text-zinc-400 italic">Nothing to preview yet.</p>}
         </div>
       </div>
@@ -752,7 +848,10 @@ function useTotals(draft: Draft, digits: number) {
   }, [draft.lineItems, digits]);
 }
 
-const ROW_GRID = "md:grid md:grid-cols-[minmax(0,1fr)_72px_128px_116px_56px_88px] md:items-start md:gap-3";
+const ROW_GRID = "md:grid md:grid-cols-[minmax(0,1fr)_72px_132px_112px_60px_84px] md:items-start md:gap-3";
+// Inline-edit cells: quiet until hovered/focused.
+const CELL =
+  "block h-9 w-full rounded-lg border border-transparent bg-transparent px-2.5 text-sm text-ink transition duration-150 outline-none placeholder:text-zinc-400 hover:border-zinc-200 hover:bg-white focus:border-accent-500 focus:bg-white focus:ring-3 focus:ring-accent-500/10 disabled:hover:border-transparent disabled:hover:bg-transparent";
 
 function LineItemsEditor({
   draft,
@@ -779,55 +878,69 @@ function LineItemsEditor({
     }));
 
   return (
-    <Panel
-      title="Pricing"
-      action={<span className="rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">{meta.currency}</span>}
-    >
-      <div className={cx("hidden px-1 pb-2 text-xs font-medium text-zinc-500", ROW_GRID)}>
-        <span>Item</span>
-        <span>Qty</span>
-        <span>Unit price</span>
+    <section className="card overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-5 py-3.5 sm:px-6">
+        <div>
+          <h2 className="text-sm font-semibold text-ink">Pricing</h2>
+          <p className="mt-0.5 text-xs text-zinc-500">Toggle “Optional” for add-ons the client can choose.</p>
+        </div>
+        <span className="rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 font-mono text-[11px] font-medium text-zinc-600">{meta.currency}</span>
+      </div>
+
+      <div className={cx("hidden border-b border-zinc-100 bg-zinc-50/60 px-3 py-2 text-xs font-medium text-zinc-500 sm:px-4", ROW_GRID)}>
+        <span className="pl-2.5">Item</span>
+        <span className="pr-2.5 text-right">Qty</span>
+        <span className="pr-2.5 text-right">Unit price</span>
         <span className="text-right">Amount</span>
         <span className="text-center">Optional</span>
         <span />
       </div>
 
-      <div className="divide-y divide-zinc-100 border-y border-zinc-100">
-        {draft.lineItems.length === 0 && <p className="py-8 text-center text-sm text-zinc-500">No line items yet.</p>}
+      <div className="divide-y divide-zinc-100">
+        {draft.lineItems.length === 0 && <p className="px-6 py-10 text-center text-sm text-zinc-500">No line items yet.</p>}
         {draft.lineItems.map((li, i) => {
           const qErr = errors[`qty:${li.id}`];
           const pErr = errors[`price:${li.id}`];
           return (
-            <div key={li.id} className={cx("grid grid-cols-2 gap-3 px-1 py-3", ROW_GRID, li.optional && "bg-accent-50/40")}>
-              <div className="col-span-2 md:col-span-1">
-                <input
-                  aria-label="Item name"
-                  className={cx("field font-medium", !li.name.trim() && "border-amber-300")}
-                  value={li.name}
-                  placeholder="e.g. Logo design"
-                  disabled={locked}
-                  onChange={(e) => setItem(li.id, { name: e.target.value })}
-                />
+            <div
+              key={li.id}
+              className={cx(
+                "group/row grid grid-cols-2 gap-x-3 gap-y-2 px-3 py-3 transition duration-150 sm:px-4",
+                ROW_GRID,
+                li.optional ? "bg-accent-50/30 hover:bg-accent-50/60" : "hover:bg-zinc-50/70"
+              )}
+            >
+              <div className="col-span-2 min-w-0 md:col-span-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    aria-label="Item name"
+                    className={cx(CELL, "font-medium", !li.name.trim() && "border-amber-300 bg-white")}
+                    value={li.name}
+                    placeholder="e.g. Logo design"
+                    disabled={locked}
+                    onChange={(e) => setItem(li.id, { name: e.target.value })}
+                  />
+                  {li.optional && (
+                    <span className="hidden shrink-0 rounded-full bg-accent-100/70 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-accent-700 uppercase sm:inline-flex">
+                      Add-on
+                    </span>
+                  )}
+                </div>
                 <input
                   aria-label="Item description"
-                  className="mt-1.5 block w-full rounded-md bg-transparent px-3 py-1 text-xs text-zinc-600 outline-none placeholder:text-zinc-400 focus:bg-white focus:ring-2 focus:ring-accent-100"
+                  className={cx(CELL, "mt-0.5 h-7 text-xs text-zinc-500")}
                   value={li.description}
                   placeholder="Add a short description (optional)"
                   disabled={locked}
                   onChange={(e) => setItem(li.id, { description: e.target.value })}
                 />
-                {li.optional && (
-                  <span className="mt-1 ml-3 inline-flex items-center gap-1 text-[11px] font-medium text-accent-700">
-                    <IconSparkle className="size-2.5" /> Optional: client can add it when accepting
-                  </span>
-                )}
               </div>
               <label className="block">
-                <span className="label md:hidden">Qty</span>
+                <span className="label pl-2.5 md:hidden">Qty</span>
                 <input
                   aria-label="Quantity"
                   inputMode="decimal"
-                  className={cx("field text-right tabular-nums", qErr && "field-invalid")}
+                  className={cx(CELL, "money text-right", qErr && "border-rose-300 bg-white")}
                   title={qErr}
                   value={li.quantity}
                   disabled={locked}
@@ -835,13 +948,13 @@ function LineItemsEditor({
                 />
               </label>
               <label className="block">
-                <span className="label md:hidden">Unit price</span>
+                <span className="label pl-2.5 md:hidden">Unit price</span>
                 <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-zinc-400">{symbol}</span>
+                  <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-zinc-400">{symbol}</span>
                   <input
                     aria-label="Unit price"
                     inputMode="decimal"
-                    className={cx("field text-right tabular-nums", symbol.length > 1 ? "pl-10" : "pl-7", pErr && "field-invalid")}
+                    className={cx(CELL, "money text-right", symbol.length > 1 ? "pl-10" : "pl-6", pErr && "border-rose-300 bg-white")}
                     title={pErr}
                     value={li.unitPrice}
                     disabled={locked}
@@ -849,18 +962,18 @@ function LineItemsEditor({
                   />
                 </div>
               </label>
-              <div className="col-span-2 flex items-center justify-between md:col-span-1 md:block md:pt-2 md:text-right">
+              <div className="col-span-2 flex items-center justify-between px-2.5 md:col-span-1 md:block md:h-9 md:px-0 md:pt-2 md:text-right">
                 <span className="text-xs text-zinc-500 md:hidden">Amount</span>
-                <span className={cx("text-sm font-medium tabular-nums", li.optional ? "text-zinc-500" : "text-zinc-900")}>
+                <span className={cx("money text-sm font-medium", li.optional ? "text-zinc-500" : "text-ink")}>
                   {money(totals.lines.get(li.id) ?? 0)}
                 </span>
               </div>
-              <div className="flex items-center gap-2 md:justify-center md:pt-2">
+              <div className="flex items-center gap-2 px-2.5 md:h-9 md:justify-center md:px-0">
                 <Switch checked={li.optional} onChange={(v) => setItem(li.id, { optional: v })} disabled={locked} label="Optional add-on" />
                 <span className="text-xs text-zinc-500 md:hidden">Optional</span>
               </div>
               {!locked && (
-                <div className="flex items-center justify-end md:pt-1">
+                <div className="flex items-center justify-end transition duration-150 md:h-9 md:opacity-0 md:group-focus-within/row:opacity-100 md:group-hover/row:opacity-100">
                   <IconButton label="Move up" onClick={() => update((d) => ({ ...d, lineItems: move(d.lineItems, i, i - 1) }))} disabled={i === 0}>
                     <IconUp className="size-4" />
                   </IconButton>
@@ -885,7 +998,7 @@ function LineItemsEditor({
         })}
       </div>
 
-      <div className="mt-4 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-6 border-t border-zinc-100 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
         {!locked ? (
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => addItem(false)} disabled={draft.lineItems.length >= 100}>
@@ -901,24 +1014,22 @@ function LineItemsEditor({
         <dl className="w-full space-y-1.5 text-sm sm:w-72">
           <div className="flex justify-between text-zinc-600">
             <dt>Subtotal</dt>
-            <dd className="tabular-nums">{money(totals.base)}</dd>
+            <dd className="money">{money(totals.base)}</dd>
           </div>
           {totals.optional > 0 && (
             <div className="flex justify-between text-zinc-500">
               <dt>Optional add-ons</dt>
-              <dd className="tabular-nums">+ {money(totals.optional)}</dd>
+              <dd className="money">+ {money(totals.optional)}</dd>
             </div>
           )}
           <div className="flex items-baseline justify-between border-t border-zinc-200 pt-2.5">
-            <dt className="font-semibold text-zinc-900">Total</dt>
-            <dd className="text-lg font-semibold tracking-tight text-zinc-900 tabular-nums">{money(totals.base)}</dd>
+            <dt className="font-medium text-ink">Total</dt>
+            <dd className="money text-lg font-semibold text-ink">{money(totals.base)}</dd>
           </div>
-          {totals.optional > 0 && (
-            <p className="text-right text-xs text-zinc-500">Up to {money(totals.base + totals.optional)} with all add-ons</p>
-          )}
+          {totals.optional > 0 && <p className="money text-right text-xs text-zinc-500">Up to {money(totals.base + totals.optional)} with all add-ons</p>}
         </dl>
       </div>
-    </Panel>
+    </section>
   );
 }
 
@@ -926,42 +1037,72 @@ function LineItemsEditor({
 // Sidebar
 // ---------------------------------------------------------------------------
 
-function SummaryCard({ draft, meta }: { draft: Draft; meta: Proposal }) {
+function SummaryCard({
+  draft,
+  meta,
+  published,
+  locked,
+  onPublish,
+}: {
+  draft: Draft;
+  meta: Proposal;
+  published: boolean;
+  locked: boolean;
+  onPublish: () => void;
+}) {
   const totals = useTotals(draft, meta.digits);
   const money = (minor: number) => formatMoney(minor, meta.currency, meta.digits);
   const accepted = meta.status === "ACCEPTED";
   return (
-    <div className="card p-5">
-      <div className="text-xs font-medium text-zinc-500">{accepted ? "Accepted total" : "Proposal total"}</div>
-      <div className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900 tabular-nums">
-        {accepted ? money(meta.totals.total) : money(totals.base)}
-      </div>
-      {!accepted && totals.optional > 0 && <div className="text-xs text-zinc-500">+ {money(totals.optional)} optional</div>}
-      <dl className="mt-5 space-y-2.5 border-t border-zinc-100 pt-4 text-sm">
-        <Row label="Client">{draft.clientName || "–"}</Row>
-        <Row label="Valid until">{draft.validUntil ? formatDate(draft.validUntil) : "No expiry"}</Row>
-        <Row label="Line items">{draft.lineItems.length}</Row>
-      </dl>
-      <div className="mt-5 rounded-xl bg-zinc-50 p-3">
-        <div className="flex items-center justify-between text-xs font-medium text-zinc-500">
-          Public link
-          {meta.status === "DRAFT" && <span className="text-amber-600">Not live yet</span>}
+    <div className="card overflow-hidden">
+      <div className="p-5">
+        <div className="flex items-center justify-between">
+          <span className="text-[13px] font-medium text-zinc-500">{accepted ? "Accepted total" : "Total"}</span>
+          <StatusBadge status={meta.status} />
         </div>
-        <div className="mt-1.5 flex items-center gap-2">
-          <code className="min-w-0 flex-1 truncate text-xs text-zinc-700" title={meta.publicUrl}>
+        <div className={cx("money mt-1.5 text-[30px] leading-10 font-semibold tracking-[-0.03em]", accepted ? "text-success-600" : "text-ink")}>
+          {accepted ? money(meta.totals.total) : money(totals.base)}
+        </div>
+        <div className="money h-5 text-[13px] text-zinc-500">
+          {!accepted && totals.optional > 0 ? `+ ${money(totals.optional)} in optional add-ons` : ""}
+        </div>
+
+        <div className="mt-5 hidden space-y-2 lg:block">
+          <PublishControls published={published} locked={locked} onPublish={onPublish} block />
+          <CopyButton
+            text={meta.publicUrl}
+            label="Copy public link"
+            size="lg"
+            className="w-full"
+            toast={published ? "Public link copied" : "Link copied. It goes live once you publish."}
+          />
+        </div>
+      </div>
+
+      <div className="border-t border-zinc-100 bg-zinc-50/50 px-5 py-4">
+        <dl className="space-y-2 text-[13px]">
+          <Row label="Client">{draft.clientName || "–"}</Row>
+          <Row label="Valid until">{draft.validUntil ? formatDate(draft.validUntil) : "No expiry"}</Row>
+          <Row label="Line items">{draft.lineItems.length}</Row>
+        </dl>
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 py-2">
+          <span className={cx("size-1.5 shrink-0 rounded-full", published ? "bg-accent-500" : "bg-zinc-300")} title={published ? "Live" : "Not live yet"} />
+          <code className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-600" title={meta.publicUrl}>
             {meta.publicUrl.replace(/^https?:\/\//, "")}
           </code>
-          {meta.status !== "DRAFT" && (
+          {published ? (
             <a
               href={meta.publicUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-zinc-400 hover:text-zinc-700"
+              className="text-zinc-400 transition duration-150 hover:text-ink"
               aria-label="Open public page"
               title="Open public page"
             >
-              <IconExternal className="size-4" />
+              <IconExternal className="size-3.5" />
             </a>
+          ) : (
+            <span className="text-[11px] font-medium whitespace-nowrap text-zinc-400">Not live</span>
           )}
         </div>
       </div>
@@ -988,32 +1129,43 @@ const FIELD_LABELS: Record<string, string> = {
   currency: "currency",
 };
 
-function describe(a: Activity, acceptedBy: string | null): { title: string; detail?: string; dot: string } {
+type Described = { title: string; detail?: string; icon: ComponentType<{ className?: string }>; tone: string };
+
+const CLAUDE_TONE = "bg-orange-50 text-[#D97757] ring-orange-200/70";
+const NEUTRAL_TONE = "bg-white text-zinc-500 ring-zinc-200";
+
+function describe(a: Activity, acceptedBy: string | null): Described {
   const byClaude = a.meta?.via === "mcp";
   const by = byClaude ? " by Claude" : "";
   switch (a.type) {
     case "CREATED":
-      return { title: `Created${by}`, dot: byClaude ? "bg-orange-400" : "bg-zinc-400" };
+      return { title: `Created${by}`, icon: byClaude ? IconSparkle : IconFilePlus, tone: byClaude ? CLAUDE_TONE : NEUTRAL_TONE };
     case "EDITED": {
       const fields = Array.isArray(a.meta?.fields) ? (a.meta.fields as string[]).map((f) => FIELD_LABELS[f] ?? f) : [];
-      return { title: `Edited${by}`, detail: fields.length ? `Changed ${fields.join(", ")}` : undefined, dot: byClaude ? "bg-orange-300" : "bg-zinc-300" };
+      return {
+        title: `Edited${by}`,
+        detail: fields.length ? `Changed ${fields.join(", ")}` : undefined,
+        icon: byClaude ? IconSparkle : IconPencil,
+        tone: byClaude ? CLAUDE_TONE : NEUTRAL_TONE,
+      };
     }
     case "PUBLISHED":
-      return { title: `Published${by}`, detail: "Public link is live", dot: "bg-accent-500" };
+      return { title: `Published${by}`, detail: "Public link is live", icon: IconSend, tone: "bg-accent-50 text-accent-600 ring-accent-200/70" };
     case "VIEWED":
-      return { title: "Viewed by client", dot: "bg-amber-500" };
+      return { title: "Viewed by client", icon: IconEye, tone: "bg-amber-50 text-amber-600 ring-amber-200/70" };
     case "ACCEPTED": {
       const name = (a.meta?.name as string | undefined) ?? acceptedBy;
       const addOns = Array.isArray(a.meta?.addOns) ? (a.meta.addOns as string[]) : [];
       return {
         title: name ? `Accepted by ${name}` : "Accepted",
         detail: addOns.length ? `With ${addOns.join(", ")}` : "No add-ons",
-        dot: "bg-emerald-500",
+        icon: IconCheck,
+        tone: "bg-success-50 text-success-600 ring-success-200/70",
       };
     }
     case "DECLINED": {
       const reason = a.meta?.reason as string | undefined;
-      return { title: "Declined by client", detail: reason ? `“${reason}”` : undefined, dot: "bg-rose-500" };
+      return { title: "Declined by client", detail: reason ? `“${reason}”` : undefined, icon: IconX, tone: "bg-rose-50 text-rose-600 ring-rose-200/70" };
     }
   }
 }
@@ -1021,20 +1173,27 @@ function describe(a: Activity, acceptedBy: string | null): { title: string; deta
 function ActivityTimeline({ activities, acceptedBy }: { activities: Activity[]; acceptedBy: string | null }) {
   return (
     <div className="card p-5">
-      <h2 className="text-sm font-semibold text-zinc-900">Activity</h2>
+      <h2 className="text-sm font-semibold text-ink">Activity</h2>
       {activities.length === 0 ? (
         <p className="mt-3 text-sm text-zinc-500">No activity yet.</p>
       ) : (
-        <ol className="mt-4">
+        <ol className="mt-4 max-h-[420px] overflow-y-auto pr-1">
           {activities.map((a, i) => {
             const d = describe(a, acceptedBy);
+            const Icon = d.icon;
             return (
               <li key={a.id} className="relative flex gap-3 pb-5 last:pb-0">
-                {i < activities.length - 1 && <span className="absolute top-3 bottom-0 left-[4.5px] w-px bg-zinc-200" aria-hidden />}
-                <span className={cx("relative mt-1.5 size-2.5 shrink-0 rounded-full ring-4 ring-white", d.dot)} />
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-zinc-800">{d.title}</div>
-                  {d.detail && <div className="truncate text-xs text-zinc-500">{d.detail}</div>}
+                {i < activities.length - 1 && <span className="absolute top-7 bottom-1 left-[11.5px] w-px bg-zinc-200" aria-hidden />}
+                <span className={cx("relative grid size-6 shrink-0 place-items-center rounded-full ring-1 ring-inset", d.tone)}>
+                  <Icon className="size-3.5" />
+                </span>
+                <div className="min-w-0 pt-0.5">
+                  <div className="text-[13px] leading-5 font-medium text-ink">{d.title}</div>
+                  {d.detail && (
+                    <div className="truncate text-xs text-zinc-500" title={d.detail}>
+                      {d.detail}
+                    </div>
+                  )}
                   <time className="text-xs text-zinc-400" dateTime={a.createdAt} title={formatDateTime(a.createdAt)}>
                     {relativeTime(a.createdAt)}
                   </time>

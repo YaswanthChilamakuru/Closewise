@@ -2,21 +2,60 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* The one accent colour (indigo). Use accent-* everywhere instead of a named palette. */
-  --color-accent-50: oklch(96.2% 0.018 272.314);
-  --color-accent-100: oklch(93% 0.034 272.788);
-  --color-accent-200: oklch(87% 0.065 274.039);
-  --color-accent-300: oklch(78.5% 0.115 274.713);
-  --color-accent-500: oklch(58.5% 0.233 277.117);
-  --color-accent-600: oklch(51.1% 0.262 276.966);
-  --color-accent-700: oklch(45.7% 0.24 277.023);
+  /* Ink + surfaces */
+  --color-ink: #0b0b0f;
+  --color-canvas: #fafafa;
+
+  /* The one accent: deep indigo (#4F46E5 = accent-600). */
+  --color-accent-50: #eef2ff;
+  --color-accent-100: #e0e7ff;
+  --color-accent-200: #c7d2fe;
+  --color-accent-300: #a5b4fc;
+  --color-accent-400: #818cf8;
+  --color-accent-500: #6366f1;
+  --color-accent-600: #4f46e5;
+  --color-accent-700: #4338ca;
+
+  /* Emerald: only for "Accepted" and success states. */
+  --color-success-50: #ecfdf5;
+  --color-success-100: #d1fae5;
+  --color-success-200: #a7f3d0;
+  --color-success-500: #10b981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+
+  --shadow-card: 0 1px 2px rgb(11 11 15 / 0.04), 0 1px 1px rgb(11 11 15 / 0.02);
+  --shadow-lift: 0 1px 2px rgb(11 11 15 / 0.04), 0 8px 24px -8px rgb(11 11 15 / 0.12);
+  --shadow-pop: 0 4px 12px -2px rgb(11 11 15 / 0.08), 0 24px 48px -12px rgb(11 11 15 / 0.18);
+
+  --animate-pop-in: pop-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade-in: fade-in 150ms ease-out;
+  --animate-shimmer: shimmer 1.6s infinite linear;
+
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(4px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes shimmer {
+    from { background-position: -400px 0; }
+    to { background-position: 400px 0; }
+  }
 }
 
 @layer base {
   html {
-    font-feature-settings: "cv11", "ss01";
+    font-feature-settings: "ss01", "cv11";
+    -webkit-tap-highlight-color: transparent;
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.02em;
   }
   ::selection {
     background: var(--color-accent-100);
@@ -26,22 +65,33 @@
     -webkit-appearance: none;
     margin: 0;
   }
-  input[type="number"] {
-    -moz-appearance: textfield;
+  :focus-visible {
+    outline: none;
   }
 }
 
 @layer components {
   .field {
-    @apply block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-xs transition placeholder:text-zinc-400 focus:border-accent-500 focus:ring-3 focus:ring-accent-100 focus:outline-none disabled:bg-zinc-50 disabled:text-zinc-500;
+    @apply block h-9 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-ink shadow-[0_1px_1px_rgb(11_11_15/0.03)] transition duration-150 placeholder:text-zinc-400 hover:border-zinc-300 focus:border-accent-500 focus:ring-3 focus:ring-accent-500/15 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500;
   }
   .field-invalid {
-    @apply border-rose-300 focus:border-rose-500 focus:ring-rose-100;
+    @apply border-rose-300 hover:border-rose-400 focus:border-rose-500 focus:ring-rose-500/15;
   }
   .label {
-    @apply mb-1.5 block text-xs font-medium text-zinc-600;
+    @apply mb-1.5 block text-[13px] font-medium text-zinc-700;
   }
   .card {
-    @apply rounded-2xl border border-zinc-200/80 bg-white shadow-xs;
+    @apply rounded-2xl border border-zinc-200/80 bg-white shadow-card;
+  }
+  .money {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .skeleton {
+    @apply rounded-md bg-zinc-100;
+    background-image: linear-gradient(90deg, transparent 0, rgb(255 255 255 / 0.7) 50%, transparent 100%);
+    background-size: 400px 100%;
+    background-repeat: no-repeat;
+    animation: var(--animate-shimmer);
   }
 }

@@ -43,11 +43,11 @@ export default function Connect() {
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl">
-        <div className="flex items-center gap-2 text-sm font-medium text-orange-600">
-          <IconSparkle className="size-4" />
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-600 shadow-card">
+          <IconSparkle className="size-3.5 text-[#D97757]" />
           MCP connector
         </div>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900">Connect to Claude</h1>
+        <h1 className="mt-4 text-[26px] leading-tight font-semibold tracking-[-0.03em] text-ink">Connect to Claude</h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-500">
           Closewise has no AI of its own. Your Claude writes the proposals and saves them here through this private URL. Then
           you review, publish and track them in Closewise.
@@ -56,14 +56,14 @@ export default function Connect() {
         {/* URL */}
         <section className="card mt-8 p-5 sm:p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-900">Your MCP URL</h2>
+            <h2 className="text-sm font-semibold text-ink">Your MCP URL</h2>
             <span className="inline-flex items-center gap-1 text-xs text-amber-700">
               <IconAlert className="size-3.5" />
               Keep it secret, like a password
             </span>
           </div>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <div className="flex min-w-0 flex-1 items-center rounded-lg border border-zinc-200 bg-zinc-50 pr-1">
+            <div className="flex h-10 min-w-0 flex-1 items-center rounded-lg border border-zinc-200 bg-zinc-50/80 pr-1 shadow-[inset_0_1px_2px_rgb(11_11_15/0.04)]">
               <code className="min-w-0 flex-1 truncate px-3 py-2 font-mono text-sm text-zinc-800" title={revealed ? url : undefined}>
                 {revealed ? url : masked}
               </code>
@@ -77,7 +77,7 @@ export default function Connect() {
                 {revealed ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
               </button>
             </div>
-            <CopyButton text={url} label="Copy URL" variant="primary" toast="MCP URL copied" />
+            <CopyButton text={url} label="Copy URL" variant="primary" size="lg" toast="MCP URL copied" />
           </div>
           {/localhost|127\.0\.0\.1/.test(url) && (
             <p className="mt-3 text-xs leading-relaxed text-zinc-500">
@@ -89,7 +89,7 @@ export default function Connect() {
 
         {/* Steps */}
         <section className="mt-10">
-          <h2 className="text-sm font-semibold text-zinc-900">Connect in three steps</h2>
+          <h2 className="text-sm font-semibold text-ink">Connect in three steps</h2>
           <ol className="mt-4 grid gap-4 sm:grid-cols-3">
             <Step n={1} title="Open connectors">
               In <span className="font-medium text-zinc-700">claude.ai</span>, go to <span className="font-medium text-zinc-700">Settings → Connectors</span> and click{" "}
@@ -107,17 +107,17 @@ export default function Connect() {
 
         {/* Prompts */}
         <section className="mt-10">
-          <h2 className="text-sm font-semibold text-zinc-900">Things to ask Claude</h2>
+          <h2 className="text-sm font-semibold text-ink">Things to ask Claude</h2>
           <ul className="mt-4 space-y-2">
             {EXAMPLE_PROMPTS.map((p) => (
               <li key={p}>
                 <button
                   type="button"
                   onClick={async () => (await copyText(p)) && toast("Prompt copied")}
-                  className="group flex w-full items-start gap-3 rounded-xl border border-zinc-200/80 bg-white px-4 py-3 text-left text-sm text-zinc-700 shadow-xs transition hover:border-accent-200 hover:bg-accent-50/40"
+                  className="group flex w-full items-start gap-3 rounded-xl border border-zinc-200/80 bg-white px-4 py-3 text-left text-sm text-zinc-700 shadow-card transition duration-150 hover:-translate-y-px hover:border-zinc-300 hover:shadow-lift"
                 >
                   <span className="flex-1 leading-relaxed">“{p}”</span>
-                  <IconCopy className="mt-0.5 size-4 shrink-0 text-zinc-300 transition group-hover:text-accent-600" />
+                  <IconCopy className="mt-0.5 size-4 shrink-0 text-zinc-300 transition duration-150 group-hover:text-accent-600" />
                 </button>
               </li>
             ))}
@@ -125,9 +125,9 @@ export default function Connect() {
         </section>
 
         {/* Regenerate */}
-        <section className="mt-10 flex flex-col gap-4 rounded-2xl border border-rose-200/70 bg-rose-50/40 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <section className="card mt-10 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-900">Regenerate URL</h2>
+            <h2 className="text-sm font-semibold text-ink">Regenerate URL</h2>
             <p className="mt-1 max-w-md text-sm text-zinc-500">
               Shared it by accident? Create a new URL. The current one stops working immediately.
             </p>
@@ -164,8 +164,8 @@ export default function Connect() {
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <li className="card p-5">
-      <span className="grid size-7 place-items-center rounded-full bg-accent-600 text-xs font-semibold text-white">{n}</span>
-      <h3 className="mt-4 text-sm font-semibold text-zinc-900">{title}</h3>
+      <span className="grid size-7 place-items-center rounded-lg border border-zinc-200 bg-zinc-50 font-mono text-xs font-medium text-zinc-600">{n}</span>
+      <h3 className="mt-4 text-sm font-semibold text-ink">{title}</h3>
       <p className="mt-1.5 text-sm leading-relaxed text-zinc-500">{children}</p>
     </li>
   );

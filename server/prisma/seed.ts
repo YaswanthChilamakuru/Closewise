@@ -19,7 +19,7 @@ async function main() {
   const user = await prisma.user.upsert({
     where: { email: DEMO_EMAIL },
     update: { passwordHash },
-    create: { email: DEMO_EMAIL, passwordHash, name: "Demo Freelancer", mcpToken: newToken() },
+    create: { email: DEMO_EMAIL, passwordHash, name: "Design Studio", mcpToken: newToken() },
   });
 
   // Re-runnable: replace the demo user's proposals.
