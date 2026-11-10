@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  DECLINED
+}
+
+enum ProposalSource {
+  CLAUDE
+  MANUAL
+}
+
+enum ActivityType {
+  CREATED
+  EDITED
+  PUBLISHED
+  VIEWED
+  ACCEPTED
+  DECLINED
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  mcpToken     String     @unique
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  proposals    Proposal[]
+}
+
+model Proposal {
+  id                  String         @id @default(cuid())
+  userId              String
+  user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slug                String         @unique
+  title               String
+  clientName          String
+  clientEmail         String?
+  currency            String         @default("INR")
+  validUntil          DateTime?
+  status              ProposalStatus @default(DRAFT)
+  /// [{ heading: string, body: string (markdown) }]
+  sections            Json           @default("[]")
+  acceptedBy          String?
+  acceptedAt          DateTime?
+  /// string[] of optional LineItem ids the client selected on acceptance
+  selectedOptionalIds Json           @default("[]")
+  source              ProposalSource @default(MANUAL)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  lineItems           LineItem[]
+  activities          Activity[]
+
+  @@index([userId])
+}
+
+model LineItem {
+  id          String   @id @default(cuid())
+  proposalId  String
+  proposal    Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  /// May be fractional (e.g. 2.5 hours); line totals are rounded to minor units on the server
+  quantity    Float    @default(1)
+  /// Minor units (paise/cents)
+  unitPrice   Int
+  optional    Boolean  @default(false)
+  position    Int      @default(0)
+
+  @@index([proposalId])
+}
+
+model Activity {
+  id         String       @id @default(cuid())
+  proposalId String
+  proposal   Proposal     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  type       ActivityType
+  meta       Json         @default("{}")
+  createdAt  DateTime     @default(now())
+
+  @@index([proposalId])
+}

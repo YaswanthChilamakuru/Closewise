@@ -1,0 +1,27 @@
+# Render Blueprint: one free Node web service serving the React app, /api, /mcp, /p/:slug and /health.
+# Database is external (Neon Postgres); set DATABASE_URL in the Render dashboard.
+services:
+  - type: web
+    name: closewise
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    # Root `npm start` runs `prisma migrate deploy` and then starts Express.
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      # NODE_ENV=production makes `npm install` skip devDependencies, but the build needs
+      # them (typescript, vite, tailwind). Keep them installed.
+      - key: NPM_CONFIG_INCLUDE
+        value: dev
+      - key: DATABASE_URL
+        sync: false # Neon *direct* (non-pooler) connection string, with ?sslmode=require
+      - key: JWT_SECRET
+        generateValue: true
+      - key: APP_URL
+        sync: false # e.g. https://closewise.onrender.com (no trailing slash)
